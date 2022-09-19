@@ -68,6 +68,7 @@ void UE4ServerBootstrap::Setup()
 	glfwMaximizeWindow(_window);
 
 	// Initialize application settings handler
+	// This has to happen *after* ImGUI context is created
 	Settings::Init();
 
 	// App specific allocation
@@ -90,6 +91,11 @@ void UE4ServerBootstrap::Shutdown()
 	ImGui_ImplGlfw_Shutdown();
 	ImPlot::DestroyContext();
 	ImGui::DestroyContext();
+
+	// Deinitialize the settings pointers
+	// This has to happen *after* ImGUI context is destroyed
+	// the context destruction will serialize the settings
+	Settings::Deinit();
 
 	// Graphics API shutdown
 	glfwDestroyWindow(_window);

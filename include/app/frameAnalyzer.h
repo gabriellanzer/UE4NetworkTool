@@ -17,7 +17,7 @@ struct SnapshotTexture
     float duration = 0.016f;
 };
 
-class GLFWwindow;
+struct GLFWwindow;
 typedef unsigned int ImGuiID;
 
 class FrameAnalyzerWindow

@@ -15,7 +15,7 @@
 #endif
 
 // Using Directives and TypeDefs
-template<typename T>
+template <typename T>
 using vector = std::vector<T>;
 using string = std::string;
 typedef unsigned int ImGuiID;
@@ -23,35 +23,36 @@ typedef unsigned int ImGuiID;
 class ServerLauncherWindow
 {
   public:
-    ServerLauncherWindow();
-    ~ServerLauncherWindow();
-    explicit ServerLauncherWindow(bool isOpen) : ShouldShow(isOpen){};
+	ServerLauncherWindow() = delete;
+	explicit ServerLauncherWindow(bool isOpen);
+	~ServerLauncherWindow();
 
-    void Draw(ImGuiID dockSpaceId, double deltaTime);
-    void DrawMenuBarWindowItems();
+	void Draw(ImGuiID dockSpaceId, double deltaTime);
+	void DrawMenuBarWindowItems();
 
-    bool ShouldShow = false;
+	bool ShouldShow = false;
+	bool FirstTimeOpen = true;
 
   private:
-    int _scrollTargetParamId = 0;
-    int _selectedParamId = 0;
-    vector<string> _launchParams;
+	int _scrollTargetParamId = 0;
+	int _selectedParamId = 0;
+	string* _settingsEntry = nullptr;
+	vector<string> _launchParams;
 
 #if WIN32
-    void LaunchServerProcess();
-    void ForceCloseServer();
-    void PullServerOutputLog();
+	void LaunchServerProcess();
+	void ForceCloseServer();
+	void PullServerOutputLog();
 
-    PPROCESS_INFORMATION _serverProcInfo = nullptr;
-    HANDLE _hChildStdOut_Rd = nullptr;
-    HANDLE _hChildStdOut_Wr = nullptr;
-    HANDLE _hAsyncReadServerHandle = nullptr;
-    vector<char> _asyncReadQueue;
-    vector<string> _serverLogs;
+	PPROCESS_INFORMATION _serverProcInfo = nullptr;
+	HANDLE _hChildStdOut_Rd = nullptr;
+	HANDLE _hChildStdOut_Wr = nullptr;
+	HANDLE _hAsyncReadServerHandle = nullptr;
+	vector<char> _asyncReadQueue;
+	vector<string> _serverLogs;
 
-    // Statics
-    static int OnParamsInputTextCallback(struct ImGuiInputTextCallbackData* cbData);
-    DWORD static __stdcall AsyncReadServerStdout(void* pVoid);
-    static std::mutex _threadMutex;
+	// Statics
+	DWORD static __stdcall AsyncReadServerStdout(void* pVoid);
+	static std::mutex _threadMutex;
 #endif
 };

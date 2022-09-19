@@ -1,23 +1,34 @@
 #include <app/serverLauncher.h>
 
 // Third Party Includes
-#include <fmt/core.h>
-#include <imgui/imgui.h>
+#include <pfd.h>
+#include <fmt/format.h>
+#include <sstream>
+
 #define IMGUI_DEFINE_MATH_OPERATORS
+#include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
 #undef IMGUI_DEFINE_MATH_OPERATORS
-#include <pfd.h>
 
 // Internal Includes
 #include <RVCore/utils.h>
 #include <app/settings.h>
 
-ServerLauncherWindow::ServerLauncherWindow() {
-	// Settings::Register("ServerLauncherParams");
+ServerLauncherWindow::ServerLauncherWindow(bool isOpen)
+	: ShouldShow(isOpen), _settingsEntry(Settings::Register("ServerLauncherParams"))
+{
 }
 
 ServerLauncherWindow::~ServerLauncherWindow()
 {
+	// Set information to be saved upon closing
+	string saveStr = fmt::format("ParamsCount={0}|", _launchParams.size());
+	for (const string& param : _launchParams)
+	{
+		saveStr += fmt::format("Param={0}|", param);
+	}
+	_settingsEntry->assign(saveStr);
+
 #if WIN32
 	// Close server-process if existing
 	if (_serverProcInfo != nullptr)
@@ -30,6 +41,48 @@ ServerLauncherWindow::~ServerLauncherWindow()
 void ServerLauncherWindow::Draw(ImGuiID dockSpaceId, double deltaTime)
 {
 	if (!ShouldShow) return;
+
+	if (FirstTimeOpen)
+	{
+		FirstTimeOpen = false;
+
+		// Load Settings
+		if (_settingsEntry->empty()) return;
+
+		// Load launch parameters count
+		string entryView = *_settingsEntry;
+
+		size_t itPos = entryView.find_first_of('|');
+		if (itPos == size_t(-1)) return;
+
+		entryView[itPos] = '\0';
+		char* tokenPtr = &entryView[0];
+
+		int paramsCount = 0;
+		if (sscanf_s(tokenPtr, "ParamsCount=%i", &paramsCount) != 1) return;
+
+		// Load each parameter
+		char paramBuf[512];
+		_launchParams.reserve(paramsCount);
+		for (int i = 0; i < paramsCount; i++)
+		{
+			size_t itStart = itPos + 1;
+			itPos = entryView.find_first_of('|', itStart);
+			if (itPos == size_t(-1)) break;
+
+			entryView[itPos] = paramBuf[0] = '\0';
+			tokenPtr = &entryView[itStart];
+			sscanf_s(tokenPtr, "Param=%s", paramBuf);
+			_launchParams.push_back(string(paramBuf));
+		}
+
+		// Override params buffer
+		if (!_launchParams.empty())
+		{
+			string& paramEntry = _launchParams[0];
+			memcpy(paramBuf, paramEntry.c_str(), paramEntry.size() + 1);
+		}
+	}
 
 	ImGui::SetNextWindowDockID(dockSpaceId, ImGuiCond_FirstUseEver);
 	if (ImGui::Begin("Server Launcher", &ShouldShow))
@@ -105,8 +158,8 @@ void ServerLauncherWindow::Draw(ImGuiID dockSpaceId, double deltaTime)
 					else // Unselected are readonly of the stored entry values
 					{
 						ImGui::SetNextItemWidth(inputTextWidth);
-						if (ImGui::InputText("##paramInput", const_cast<char*>(paramEntry.c_str()),
-											 paramEntry.size() + 1, ImGuiInputTextFlags_ReadOnly))
+						if (ImGui::InputText("##paramInput", paramEntry.data(), paramEntry.size() + 1,
+											 ImGuiInputTextFlags_ReadOnly))
 						{
 							paramEntry = paramBuf;
 						}
@@ -129,7 +182,8 @@ void ServerLauncherWindow::Draw(ImGuiID dockSpaceId, double deltaTime)
 
 			// Side panel REST operations
 			ImGui::TableNextColumn();
-			ImGui::TextWrapped("Info: The parameters are all appended in order and with '?' character between them (no spaces).");
+			ImGui::TextWrapped(
+				"Info: The parameters are all appended in order and with '?' character between them (no spaces).");
 			if (ImGui::Button("New Param"))
 			{
 				if (!_launchParams.empty())

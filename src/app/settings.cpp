@@ -3,9 +3,14 @@
 // Third Party Includes
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
-#include <scn/scn.h>
 
-map<string, string> Settings::_settingsMap;
+// Using directives
+template <typename TKey, typename TValue>
+using map = std::map<TKey, TValue>;
+using string = std::string;
+using string_view = std::string_view;
+
+map<string, string*> Settings::_settingsMap;
 
 void Settings::Init()
 {
@@ -20,9 +25,19 @@ void Settings::Init()
 	ImGui::GetCurrentContext()->SettingsHandlers.push_back(iniHandler);
 }
 
-string& Settings::Register(const string& entry, const string& value)
+void Settings::Deinit()
 {
-	auto [it, emplaced] = _settingsMap.try_emplace(entry, value);
+
+	for (auto& entry : _settingsMap)
+	{
+		delete entry.second;
+		entry.second = nullptr;
+	}
+}
+
+string* Settings::Register(const string& entry, const string& value)
+{
+	auto [it, emplaced] = _settingsMap.try_emplace(entry, new string(value));
 	return it->second;
 }
 
@@ -32,13 +47,15 @@ void* Settings::ReadOpenHandler(ImGuiContext*, ImGuiSettingsHandler*, const char
 
 void Settings::ReadLineHandler(ImGuiContext*, ImGuiSettingsHandler*, void*, const char* line)
 {
-	string entry, value;
-	auto result = scn::scan<string, string>(line, "{}={}", entry, value);
-	if (!result) return;
+	string_view lineView(line);
+	size_t pos = lineView.find_first_of('=');
+	if (pos == size_t(-1)) return;
+	string_view entry = lineView.substr(0, pos);
+	string_view value = lineView.substr(pos + 1);
 
-	if (auto it = _settingsMap.find(entry); it != _settingsMap.end())
+	if (auto it = _settingsMap.find(string(entry)); it != _settingsMap.end())
 	{
-		it->second = value;
+		*it->second = value;
 	}
 }
 
@@ -51,7 +68,7 @@ void Settings::WriteAllHandler(ImGuiContext*, ImGuiSettingsHandler* handler, ImG
 
 	for (const auto& [entry, value] : _settingsMap)
 	{
-		buf->appendf("%s=%s\n", entry.data(), value.data());
+		buf->appendf("%s=%s\n", entry.data(), value->data());
 	}
 
 	buf->append("\n");
