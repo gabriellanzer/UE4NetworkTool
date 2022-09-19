@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.1.0)
 
 # Project Setup
-project(UE4ServerBootstrap VERSION 0.0.2)
+project(UE4ServerBootstrap VERSION 0.0.3)
 
 # Configure Conan
 include(${CMAKE_SOURCE_DIR}/conan.cmake)

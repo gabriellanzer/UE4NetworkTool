@@ -11,48 +11,40 @@
 
 #include <RVCore/iapp.h>
 
-//struct SnapshotTexture
-//{
-//    std::string imageName;
-//    unsigned int glTexture;
-//    int width, height;
-//    float duration = 0.016f;
-//};
-
 class UE4ServerBootstrap : public rv::IApp
 {
   public:
-    UE4ServerBootstrap() : rv::IApp("UE4 Server Bootstrap"){};
-    ~UE4ServerBootstrap() = default;
+	UE4ServerBootstrap()
+		: rv::IApp("UE4 Server Bootstrap"), _serverLauncherWindow(nullptr), _frameAnalyzerWindow(nullptr){};
+	~UE4ServerBootstrap() override = default;
+	UE4ServerBootstrap(UE4ServerBootstrap&&) = delete;
+	UE4ServerBootstrap(const UE4ServerBootstrap&) = delete;
+	UE4ServerBootstrap& operator=(UE4ServerBootstrap&&) = delete;
+	UE4ServerBootstrap& operator=(const UE4ServerBootstrap&) = delete;
 
-    virtual void Awake() override;
-    virtual void Setup() override;
-    virtual void Shutdown() override;
-    virtual void Sleep() override;
-    virtual void Update(double deltaTime) override;
+	void Awake() override;
+	void Setup() override;
+	void Shutdown() override;
+	void Sleep() override;
+	void Update(double deltaTime) override;
 
   private:
-    static void OnGlfwErrorCallback(int error, const char* description)
-    {
-	fprintf(stderr, "Glfw Error %d: %s\n", error, description);
-    }
+	static void OnGlfwErrorCallback(int error, const char* description)
+	{
+		fprintf(stderr, "Glfw Error %d: %s\n", error, description);
+	}
 
-    static void OnGlfwWindowResizeCallback(GLFWwindow* window, int width, int height)
-    {
-	glViewport(0, 0, width, height);
-    }
+	static void OnGlfwWindowResizeCallback(GLFWwindow* window, int width, int height)
+	{
+		glViewport(0, 0, width, height);
+	}
 
-    UE4ServerBootstrap(UE4ServerBootstrap&&) = delete;
-    UE4ServerBootstrap(const UE4ServerBootstrap&) = delete;
-    UE4ServerBootstrap& operator=(UE4ServerBootstrap&&) = delete;
-    UE4ServerBootstrap& operator=(const UE4ServerBootstrap&) = delete;
+	void DrawAppScreen(double deltaTime);
+	GLFWwindow* _window{nullptr};
 
-    void DrawAppScreen(double deltaTime);
-    GLFWwindow* _window{nullptr};
-
-    // Windows
-    class ServerLauncherWindow* _serverLauncherWindow;
-    class FrameAnalyzerWindow* _frameAnalyzerWindow;
+	// Windows
+	class ServerLauncherWindow* _serverLauncherWindow;
+	class FrameAnalyzerWindow* _frameAnalyzerWindow;
 };
 
 #endif //!__APP__H__

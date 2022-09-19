@@ -20,6 +20,23 @@ using vector = std::vector<T>;
 using string = std::string;
 typedef unsigned int ImGuiID;
 
+enum class LogVerbosity : unsigned char
+{
+	Fatal,
+	Error,
+	Warning,
+	Display,
+	Log,
+	Verbose,
+	VeryVerbose
+};
+
+struct LogEntry
+{
+	string message;
+	LogVerbosity verbosity;
+};
+
 class ServerLauncherWindow
 {
   public:
@@ -34,22 +51,32 @@ class ServerLauncherWindow
 	bool FirstTimeOpen = true;
 
   private:
+	void LoadSettings();
+	void StoreSettings();
+
+	string* _settingsEntry = nullptr;
 	int _scrollTargetParamId = 0;
 	int _selectedParamId = 0;
-	string* _settingsEntry = nullptr;
+	char _paramBuf[512];
 	vector<string> _launchParams;
+	char _additionalParamBuf[512];
+	string _additionalParamLine;
 
 #if WIN32
 	void LaunchServerProcess();
-	void ForceCloseServer();
+	DWORD ForceCloseServer();
 	void PullServerOutputLog();
+	void PullServerProcessStatus();
 
+	DWORD _exitCode = 0;
 	PPROCESS_INFORMATION _serverProcInfo = nullptr;
 	HANDLE _hChildStdOut_Rd = nullptr;
 	HANDLE _hChildStdOut_Wr = nullptr;
 	HANDLE _hAsyncReadServerHandle = nullptr;
+	bool _copyToClipboard = false;
+	string _partialLogLine;
 	vector<char> _asyncReadQueue;
-	vector<string> _serverLogs;
+	vector<LogEntry> _serverLogs;
 
 	// Statics
 	DWORD static __stdcall AsyncReadServerStdout(void* pVoid);

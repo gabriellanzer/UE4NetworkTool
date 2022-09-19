@@ -14,20 +14,21 @@
 #include <RVCore/utils.h>
 #include <app/settings.h>
 
+using std::string_view;
+
 ServerLauncherWindow::ServerLauncherWindow(bool isOpen)
 	: ShouldShow(isOpen), _settingsEntry(Settings::Register("ServerLauncherParams"))
 {
+	_paramBuf[0] = '\0';
+	_additionalParamBuf[0] = '\0';
 }
 
 ServerLauncherWindow::~ServerLauncherWindow()
 {
 	// Set information to be saved upon closing
-	string saveStr = fmt::format("ParamsCount={0}|", _launchParams.size());
-	for (const string& param : _launchParams)
-	{
-		saveStr += fmt::format("Param={0}|", param);
-	}
-	_settingsEntry->assign(saveStr);
+	StoreSettings();
+	_launchParams.clear();
+	_settingsEntry = nullptr;
 
 #if WIN32
 	// Close server-process if existing
@@ -45,43 +46,7 @@ void ServerLauncherWindow::Draw(ImGuiID dockSpaceId, double deltaTime)
 	if (FirstTimeOpen)
 	{
 		FirstTimeOpen = false;
-
-		// Load Settings
-		if (_settingsEntry->empty()) return;
-
-		// Load launch parameters count
-		string entryView = *_settingsEntry;
-
-		size_t itPos = entryView.find_first_of('|');
-		if (itPos == size_t(-1)) return;
-
-		entryView[itPos] = '\0';
-		char* tokenPtr = &entryView[0];
-
-		int paramsCount = 0;
-		if (sscanf_s(tokenPtr, "ParamsCount=%i", &paramsCount) != 1) return;
-
-		// Load each parameter
-		char paramBuf[512];
-		_launchParams.reserve(paramsCount);
-		for (int i = 0; i < paramsCount; i++)
-		{
-			size_t itStart = itPos + 1;
-			itPos = entryView.find_first_of('|', itStart);
-			if (itPos == size_t(-1)) break;
-
-			entryView[itPos] = paramBuf[0] = '\0';
-			tokenPtr = &entryView[itStart];
-			sscanf_s(tokenPtr, "Param=%s", paramBuf);
-			_launchParams.push_back(string(paramBuf));
-		}
-
-		// Override params buffer
-		if (!_launchParams.empty())
-		{
-			string& paramEntry = _launchParams[0];
-			memcpy(paramBuf, paramEntry.c_str(), paramEntry.size() + 1);
-		}
+		LoadSettings();
 	}
 
 	ImGui::SetNextWindowDockID(dockSpaceId, ImGuiCond_FirstUseEver);
@@ -95,7 +60,6 @@ void ServerLauncherWindow::Draw(ImGuiID dockSpaceId, double deltaTime)
 			ImGui::TableNextColumn();
 
 			// Draw parameters list
-			static char paramBuf[512];
 			if (ImGui::BeginListBox("##launchParamsList", ImVec2(-FLT_MIN, 0.0f)))
 			{
 				for (int i = 0; i < _launchParams.size(); i++)
@@ -114,7 +78,7 @@ void ServerLauncherWindow::Draw(ImGuiID dockSpaceId, double deltaTime)
 					{
 						if (_selectedParamId != i)
 						{
-							memcpy(paramBuf, paramEntry.c_str(), paramEntry.size() + 1);
+							memcpy(_paramBuf, paramEntry.c_str(), paramEntry.size() + 1);
 							_scrollTargetParamId = _selectedParamId = i;
 						}
 					}
@@ -136,7 +100,7 @@ void ServerLauncherWindow::Draw(ImGuiID dockSpaceId, double deltaTime)
 						// Update selection if clicked on InputText
 						if (ImGui::GetIO().MouseDown[ImGuiMouseButton_Left])
 						{
-							memcpy(paramBuf, paramEntry.c_str(), paramEntry.size() + 1);
+							memcpy(_paramBuf, paramEntry.c_str(), paramEntry.size() + 1);
 							_scrollTargetParamId = _selectedParamId = i;
 							isSelected = true;
 						}
@@ -146,13 +110,13 @@ void ServerLauncherWindow::Draw(ImGuiID dockSpaceId, double deltaTime)
 						ImGui::GetWindowDrawList()->AddRectFilled(selMin, selMax, col);
 					}
 
-					// Selected InputText write to the paramBuf
+					// Selected InputText write to the _paramBuf
 					if (isSelected)
 					{
 						ImGui::SetNextItemWidth(inputTextWidth);
-						if (ImGui::InputText("##paramInput", paramBuf, 512))
+						if (ImGui::InputText("##paramInput", _paramBuf, 512))
 						{
-							paramEntry = paramBuf;
+							paramEntry = _paramBuf;
 						}
 					}
 					else // Unselected are readonly of the stored entry values
@@ -161,7 +125,7 @@ void ServerLauncherWindow::Draw(ImGuiID dockSpaceId, double deltaTime)
 						if (ImGui::InputText("##paramInput", paramEntry.data(), paramEntry.size() + 1,
 											 ImGuiInputTextFlags_ReadOnly))
 						{
-							paramEntry = paramBuf;
+							paramEntry = _paramBuf;
 						}
 					}
 
@@ -188,8 +152,8 @@ void ServerLauncherWindow::Draw(ImGuiID dockSpaceId, double deltaTime)
 			{
 				if (!_launchParams.empty())
 				{
-					_launchParams[_selectedParamId] = paramBuf;
-					paramBuf[0] = '\0';
+					_launchParams[_selectedParamId] = _paramBuf;
+					_paramBuf[0] = '\0';
 				}
 				_selectedParamId = _launchParams.size();
 				_launchParams.emplace_back("");
@@ -203,12 +167,18 @@ void ServerLauncherWindow::Draw(ImGuiID dockSpaceId, double deltaTime)
 				{
 					_selectedParamId = max(_selectedParamId - 1, 0);
 					const auto& paramEntry = _launchParams[_selectedParamId];
-					memcpy(paramBuf, paramEntry.c_str(), paramEntry.size() + 1);
+					memcpy(_paramBuf, paramEntry.c_str(), paramEntry.size() + 1);
 					_scrollTargetParamId = _selectedParamId;
 				}
 			}
 			ImGui::EndDisabled();
 			ImGui::EndTable();
+		}
+
+		// Additional parameter line for arguments as '-log -LogCmds'
+		if (ImGui::InputText("Additional Parameter Line", _additionalParamBuf, 512))
+		{
+			_additionalParamLine = _additionalParamBuf;
 		}
 
 #if WIN32
@@ -222,14 +192,21 @@ void ServerLauncherWindow::Draw(ImGuiID dockSpaceId, double deltaTime)
 		ImGui::SameLine();
 		if (ImGui::Button("Kill Server"))
 		{
-			ForceCloseServer();
+			_exitCode = ForceCloseServer();
 		}
 		ImGui::EndDisabled();
+		ImGui::SameLine();
+		if (ImGui::Button("Copy to Clipboard"))
+		{
+			_copyToClipboard = true;
+		}
 		ImGui::SameLine();
 		if (ImGui::Button("Clear Logs"))
 		{
 			_serverLogs.clear();
 		}
+		ImGui::SameLine();
+		PullServerProcessStatus();
 		PullServerOutputLog();
 #endif
 	}
@@ -244,9 +221,73 @@ void ServerLauncherWindow::DrawMenuBarWindowItems()
 	}
 }
 
+void ServerLauncherWindow::LoadSettings()
+{
+	// Load Settings
+	if (_settingsEntry->empty()) return;
+
+	// Load launch parameters count
+	string entryView = *_settingsEntry;
+
+	size_t itPos = entryView.find_first_of('|');
+	if (itPos == size_t(-1)) return;
+
+	entryView[itPos] = '\0';
+	char* tokenPtr = &entryView[0];
+
+	int paramsCount = 0;
+	if (sscanf_s(tokenPtr, "ParamsCount=%i", &paramsCount) != 1) return;
+
+	// Load each parameter
+	_launchParams.reserve(paramsCount);
+	for (int i = 0; i < paramsCount; i++)
+	{
+		size_t itStart = itPos + 1;
+		itPos = entryView.find_first_of('|', itStart);
+		if (itPos == size_t(-1)) break;
+
+		entryView[itPos] = _paramBuf[0] = '\0';
+		tokenPtr = &entryView[itStart];
+		sscanf_s(tokenPtr, "Param=%s", _paramBuf);
+		_launchParams.push_back(string(_paramBuf));
+	}
+
+	// Override params buffer
+	if (!_launchParams.empty())
+	{
+		string& paramEntry = _launchParams[0];
+		memcpy(_paramBuf, paramEntry.c_str(), paramEntry.size() + 1);
+	}
+
+	// Fetch additional parameters line
+	size_t itStart = itPos + 1;
+	itPos = entryView.find_first_of('|', itStart);
+	if (itPos == size_t(-1)) return;
+
+	_additionalParamLine = std::forward<string>(entryView.substr(itStart, itPos - itStart));
+	memcpy(_additionalParamBuf, _additionalParamLine.c_str(), _additionalParamLine.size() + 1);
+}
+
+void ServerLauncherWindow::StoreSettings()
+{
+	string saveStr = fmt::format("ParamsCount={0}|", _launchParams.size());
+	for (const string& param : _launchParams)
+	{
+		saveStr += fmt::format("Param={0}|", param);
+	}
+	saveStr += fmt::format("{0}|", _additionalParamLine);
+	if (_settingsEntry != nullptr)
+	{
+		_settingsEntry->assign(saveStr);
+	}
+}
+
 #if WIN32
 void ServerLauncherWindow::LaunchServerProcess()
 {
+	// Reset Exit flag
+	_exitCode = 0;
+
 	// Setup server pipes
 	// Set the bInheritHandle flag so pipe handles are inherited.
 	SECURITY_ATTRIBUTES saAttr;
@@ -269,19 +310,52 @@ void ServerLauncherWindow::LaunchServerProcess()
 									   pfd::choice::ok, pfd::icon::error);
 	}
 
-	char appPathArr[_MAX_PATH + 1];
-	GetModuleFileName(nullptr, appPathArr, _MAX_PATH);
-	string appPath = appPathArr;
+	// Build launch command line
+	string cmdLine;
+
+	// Get UE4Editor Path
+	size_t ue4PathSize = 0;
+	char* ue4PathArr = nullptr;
+	_dupenv_s(&ue4PathArr, &ue4PathSize, "UE_EDITOR_PATH");
+	cmdLine = ue4PathArr;
+
+	// Get current executable directory
+	char appPath[_MAX_PATH + 1];
+	GetModuleFileName(nullptr, appPath, _MAX_PATH);
 	string fileName, fileExt;
-	string directory = rv::splitFilename(appPath, fileName, fileExt);
-	string cmdLine = std::getenv("UE_EDITOR_PATH");
-	// cmdLine += " " + directory;
-	cmdLine += " D:\\Aquiris\\wc2\\HorizonChase2.uproject";
-	cmdLine += " /Game/HorizonChase2/Maps/Tracks/USA/USA_CA_SanFrancisco/L_USA_CA_SanFrancisco"
-			   "?countdown=15?MaxPlayers=8";
-	cmdLine += "?race=/Game/HorizonChase2/Maps/Tracks/USA/USA_CA_SanFrancisco/"
-			   "DA_USA_CA_SanFrancisco_Race.DA_USA_CA_SanFrancisco_Race";
+	string directory = rv::splitFilename(string(appPath), fileName, fileExt);
+	cmdLine += " " + directory; // " D:\\Aquiris\\wc2\\";
+
+	// Append UPROJECT
+	cmdLine += "HorizonChase2.uproject";
+
+	// Append custom parameters
+	cmdLine += " ";
+
+	//	cmdLine += "/Game/HorizonChase2/Maps/Tracks/USA/USA_CA_SanFrancisco/L_USA_CA_SanFrancisco"
+	//			   "?countdown=15?MaxPlayers=8";
+	//	cmdLine += "?race=/Game/HorizonChase2/Maps/Tracks/USA/USA_CA_SanFrancisco/"
+	//			   "DA_USA_CA_SanFrancisco_Race.DA_USA_CA_SanFrancisco_Race";
+	for (int i = 0; i < _launchParams.size(); i++)
+	{
+		// Trim any white-spaces before and after
+		string_view param = _launchParams[i];
+		size_t iniL = param.find_first_not_of(' ');
+		size_t iniR = param.find_last_not_of(' ');
+		param = param.substr(iniL, iniR - iniL + 1);
+
+		// Append parameter
+		cmdLine += param;
+
+		// Append separator
+		if (i != _launchParams.size() - 1) cmdLine += "?";
+	}
+
+	// Launch server params (-stdout, so we can hook custom io pipes)
 	cmdLine += " -server -stdout";
+
+	// Last insertion of custom parameters line
+	cmdLine += " " + _additionalParamLine;
 
 	_serverProcInfo = new PROCESS_INFORMATION();
 	STARTUPINFO siStartInfo;
@@ -321,32 +395,56 @@ void ServerLauncherWindow::LaunchServerProcess()
 	}
 
 	// Launch a thread to perform async loading of the data
-	_hAsyncReadServerHandle = CreateThread(0, 0, AsyncReadServerStdout, this, 0, NULL);
-
-	//    pfd::message launchSuccessDialog("Server Launch Succeeded", "Server was successfully initialized!",
-	//    pfd::choice::ok,
-	//				     pfd::icon::info);
+	_hAsyncReadServerHandle = CreateThread(0, 0, AsyncReadServerStdout, this, 0, nullptr);
 
 	// Close handles to the stdout pipe no longer needed by the child process.
 	// We have to close the stdout write handle in order to start reading from the other end.
 	CloseHandle(_hChildStdOut_Wr);
 }
 
-void ServerLauncherWindow::ForceCloseServer()
+DWORD ServerLauncherWindow::ForceCloseServer()
 {
-	// Terminate async read thread
-	TerminateThread(_hAsyncReadServerHandle, 0);
-	CloseHandle(_hAsyncReadServerHandle);
+	if (_serverProcInfo == nullptr) return _exitCode;
 
 	// Terminate server thread
 	TerminateProcess(_serverProcInfo->hProcess, 0);
+	DWORD exitCode = WaitForSingleObject(_serverProcInfo->hProcess, 1000);
 	CloseHandle(_serverProcInfo->hProcess);
 	CloseHandle(_serverProcInfo->hThread);
+
+	// Terminate async read thread
+	TerminateThread(_hAsyncReadServerHandle, 0);
+	WaitForSingleObject(_hAsyncReadServerHandle, 1000);
+	CloseHandle(_hAsyncReadServerHandle);
 
 	// Invalidate process info
 	delete _serverProcInfo;
 	_serverProcInfo = nullptr;
+
+	return exitCode;
 }
+
+static LogVerbosity ParseLogVerbosity(string_view logStrView)
+{
+	if (logStrView.find("Fatal") != -1) return LogVerbosity::Fatal;
+	if (logStrView.find("Error") != -1) return LogVerbosity::Error;
+	if (logStrView.find("Warning") != -1) return LogVerbosity::Warning;
+	if (logStrView.find("Display") != -1) return LogVerbosity::Display;
+	if (logStrView.find("Log") != -1) return LogVerbosity::Log;
+	if (logStrView.find("Verbose") != -1) return LogVerbosity::Verbose;
+	if (logStrView.find("VeryVerbose") != -1) return LogVerbosity::VeryVerbose;
+	return LogVerbosity::Log;
+}
+
+constexpr ImVec4 LogColors[7] = {
+	ImVec4(1.0f, 0.0f, 0.0f, 1.0f), // LogVerbosity::Fatal
+	ImVec4(0.7f, 0.0f, 0.0f, 1.0f), // LogVerbosity::Error
+	ImVec4(0.8f, 0.8f, 0.0f, 1.0f), // LogVerbosity::Warning
+	ImVec4(0.9f, 0.9f, 0.9f, 1.0f), // LogVerbosity::Display
+	ImVec4(0.8f, 0.8f, 0.8f, 1.0f), // LogVerbosity::Log
+	ImVec4(0.7f, 0.7f, 0.7f, 1.0f), // LogVerbosity::Verbose
+	ImVec4(0.6f, 0.6f, 0.6f, 1.0f), // LogVerbosity::VeryVerbose
+};
 
 void ServerLauncherWindow::PullServerOutputLog()
 {
@@ -363,18 +461,99 @@ void ServerLauncherWindow::PullServerOutputLog()
 	// Push log entry
 	if (!output.empty())
 	{
-		_serverLogs.push_back(output);
+		size_t iniEndLine = 0;
+		size_t endEndLine = output.find_first_of('\n', iniEndLine);
+		while (endEndLine != -1)
+		{
+			// Parse log entry
+			size_t msgSize = endEndLine - iniEndLine;
+			string msg = output.substr(iniEndLine, msgSize);
+			string_view msgView = msg;
+
+			// Parse verbosity
+			LogVerbosity verbosity = LogVerbosity::Log;
+			size_t verbIniP = -1;
+
+			// Has time-stamp
+			if (msgView[0] == '[')
+			{
+				// Skip time-stamp
+				verbIniP = msg.find_first_of(']', verbIniP + 1);
+				// Skip log counter
+				verbIniP = msg.find_first_of(']', verbIniP + 1);
+			}
+
+			// Skip log category
+			verbIniP = msg.find_first_of(':', verbIniP + 1) + 1;
+			size_t verbEndP = msg.find_first_of(':', verbIniP + 1);
+			if (verbIniP != -1 && verbEndP != -1)
+			{
+				string_view verbView = msgView.substr(verbIniP, verbEndP - verbIniP);
+				verbosity = ParseLogVerbosity(verbView);
+			}
+
+			// Create log entry
+			_serverLogs.push_back({std::forward<string>(msg), verbosity});
+
+			// Continue next-line parsing
+			iniEndLine = endEndLine + 1;
+			if (endEndLine == output.size() - 1) break;
+			endEndLine = output.find_first_of('\n', iniEndLine);
+
+			// No more endLines and we have a piece of log left
+			if (endEndLine == -1)
+			{
+				_ASSERT(false);
+				_partialLogLine = std::forward<string>(output.substr(iniEndLine, output.size() - iniEndLine + 1));
+			}
+		}
 		output.clear();
 	}
 
-	ImGui::BeginChild("Server Output Log");
+	ImGui::BeginChild("Server Output Log", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 1)); // Tighten spacing
-	for (const string& logEntry : _serverLogs)
+	if (_copyToClipboard) ImGui::LogToClipboard();
+	for (const LogEntry& logEntry : _serverLogs)
 	{
-		ImGui::TextUnformatted(logEntry.c_str());
+		ImGui::PushStyleColor(ImGuiCol_Text, LogColors[(int)logEntry.verbosity]);
+		ImGui::TextUnformatted(logEntry.message.c_str());
+		ImGui::PopStyleColor();
+
+		// Auto-scroll
+		if (ImGui::GetScrollY() == ImGui::GetScrollMaxY())
+		{
+			ImGui::SetScrollHereY();
+		}
 	}
+	if (_copyToClipboard) ImGui::LogFinish();
 	ImGui::PopStyleVar();
 	ImGui::EndChild();
+	_copyToClipboard = false;
+}
+
+void ServerLauncherWindow::PullServerProcessStatus()
+{
+	if (_serverProcInfo != nullptr)
+	{
+		if (!GetExitCodeProcess(_serverProcInfo->hProcess, &_exitCode))
+		{
+			ImGui::TextUnformatted("Server Status: Invalid Handle");
+		}
+	}
+
+	if (_exitCode == STILL_ACTIVE)
+	{
+		ImGui::TextUnformatted("Server Status: Running");
+	}
+	else if (_exitCode != 0)
+	{
+		ImGui::Text("Server Status: Crashed (ExitCode=%lu)", _exitCode);
+		ForceCloseServer();
+	}
+	else
+	{
+		ImGui::Text("Server Status: Not Running");
+	}
 }
 
 std::mutex ServerLauncherWindow::_threadMutex;
@@ -388,7 +567,7 @@ DWORD ServerLauncherWindow::AsyncReadServerStdout(void* pVoid)
 	char chBuf[BUFSIZE];
 	bool bSuccess = false;
 
-	HANDLE hParentStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
+	// HANDLE hParentStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
 
 	for (;;)
 	{
@@ -402,7 +581,7 @@ DWORD ServerLauncherWindow::AsyncReadServerStdout(void* pVoid)
 		}
 
 		// TODO: Remove this write
-		bSuccess = WriteFile(hParentStdOut, chBuf, dwRead, &dwWritten, NULL);
+		// bSuccess = WriteFile(hParentStdOut, chBuf, dwRead, &dwWritten, NULL);
 		if (!bSuccess) break;
 	}
 

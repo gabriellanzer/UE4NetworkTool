@@ -83,8 +83,8 @@ void UE4ServerBootstrap::Sleep() {}
 void UE4ServerBootstrap::Shutdown()
 {
 	// App specific cleanup
-	delete _frameAnalyzerWindow;
 	delete _serverLauncherWindow;
+	delete _frameAnalyzerWindow;
 
 	// ImGui shutdown
 	ImGui_ImplOpenGL3_Shutdown();
