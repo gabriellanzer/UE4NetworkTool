@@ -1,7 +1,10 @@
 #pragma once
 
-typedef unsigned int ImGuiID;
+// StdLib Includes
+#include <string>
+#include <vector>
 
+// Windows Server Deploy Specific Includes
 #if WIN32
 #include <cstdio>
 #include <cstdlib>
@@ -9,8 +12,13 @@ typedef unsigned int ImGuiID;
 #include <strsafe.h>
 #include <tchar.h>
 #include <windows.h>
-#include <vector>
 #endif
+
+// Using Directives and TypeDefs
+template<typename T>
+using vector = std::vector<T>;
+using string = std::string;
+typedef unsigned int ImGuiID;
 
 class ServerLauncherWindow
 {
@@ -25,6 +33,10 @@ class ServerLauncherWindow
     bool ShouldShow = false;
 
   private:
+    int _scrollTargetParamId = 0;
+    int _selectedParamId = 0;
+    vector<string> _launchParams;
+
 #if WIN32
     void LaunchServerProcess();
     void ForceCloseServer();
@@ -34,10 +46,11 @@ class ServerLauncherWindow
     HANDLE _hChildStdOut_Rd = nullptr;
     HANDLE _hChildStdOut_Wr = nullptr;
     HANDLE _hAsyncReadServerHandle = nullptr;
-    std::vector<char> _asyncReadQueue;
-    std::vector<std::string> _serverLogs;
+    vector<char> _asyncReadQueue;
+    vector<string> _serverLogs;
 
     // Statics
+    static int OnParamsInputTextCallback(struct ImGuiInputTextCallbackData* cbData);
     DWORD static __stdcall AsyncReadServerStdout(void* pVoid);
     static std::mutex _threadMutex;
 #endif
