@@ -9,6 +9,7 @@ include(${CMAKE_SOURCE_DIR}/conan.cmake)
 conan_cmake_run(REQUIRES
 				glfw/3.3.8
 				fmt/7.1.3
+				scnlib/1.1.2
                 BASIC_SETUP NO_OUTPUT_DIRS
 				IMPORTS "., license* -> ../../licenses @ folder=True, ignore_case=True"
 				IMPORTS "include, * -> ../../include @ ignore_case=True"
@@ -34,6 +35,7 @@ target_link_options(ue4_server_bootstrap PRIVATE -mwindows)
 
 target_link_libraries(ue4_server_bootstrap CONAN_PKG::glfw)
 target_link_libraries(ue4_server_bootstrap CONAN_PKG::fmt)
+target_link_libraries(ue4_server_bootstrap CONAN_PKG::scnlib)
 
 set_target_properties(
     ue4_server_bootstrap

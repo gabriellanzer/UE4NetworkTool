@@ -10,6 +10,11 @@
 
 // Internal Includes
 #include <RVCore/utils.h>
+#include <app/settings.h>
+
+ServerLauncherWindow::ServerLauncherWindow() {
+	// Settings::Register("ServerLauncherParams");
+}
 
 ServerLauncherWindow::~ServerLauncherWindow()
 {
@@ -35,7 +40,6 @@ void ServerLauncherWindow::Draw(ImGuiID dockSpaceId, double deltaTime)
 		if (ImGui::BeginTable("Launch Parameters", 2, ImGuiTableFlags_Resizable))
 		{
 			ImGui::TableNextColumn();
-			ImGui::AddSettingsHandler();
 
 			// Draw parameters list
 			static char paramBuf[512];

@@ -23,7 +23,7 @@ typedef unsigned int ImGuiID;
 class ServerLauncherWindow
 {
   public:
-    ServerLauncherWindow() = default;
+    ServerLauncherWindow();
     ~ServerLauncherWindow();
     explicit ServerLauncherWindow(bool isOpen) : ShouldShow(isOpen){};
 
