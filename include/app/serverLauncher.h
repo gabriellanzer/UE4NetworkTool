@@ -79,6 +79,7 @@ class ServerLauncherWindow
 	vector<LogEntry> _serverLogs;
 
 	// Statics
+	static void CloseServerOnCrashCallback(void* pVoid);
 	DWORD static __stdcall AsyncReadServerStdout(void* pVoid);
 	static std::mutex _threadMutex;
 #endif

@@ -10,9 +10,10 @@
 
 // Application Specific Includes
 #include <app/app.h>
+#include <app/settings.h>
 #include <app/frameAnalyzer.h>
 #include <app/serverLauncher.h>
-#include <app/settings.h>
+#include <app/unrealAssetBrowser.h>
 
 // Using directives
 using string = std::string;
@@ -74,6 +75,10 @@ void UE4ServerBootstrap::Setup()
 	// App specific allocation
 	_serverLauncherWindow = new ServerLauncherWindow(true);
 	_frameAnalyzerWindow = new FrameAnalyzerWindow(true, _window);
+
+	// Test Unreal Asset Browser
+	_unrealAssetBrowser = new UnrealAssetBrowser();
+	_unrealAssetBrowser->PrintAssetInfos();
 }
 
 void UE4ServerBootstrap::Awake() {}

@@ -24,7 +24,7 @@ set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} /MANIFEST:NO")
 
 # Configure Executable
 include_directories(${CMAKE_SOURCE_DIR}/src)
-file(GLOB_RECURSE SRC_FILES "${CMAKE_SOURCE_DIR}/src/*.c*" "${CMAKE_SOURCE_DIR}/src/*.h*")
+file(GLOB_RECURSE SRC_FILES "${CMAKE_SOURCE_DIR}/src/*.c*" "${CMAKE_SOURCE_DIR}/include/UEViewer/libs/*.c*" "${CMAKE_SOURCE_DIR}/src/*.h*")
 add_executable(ue4_server_bootstrap ${SRC_FILES})
 
 # Target for C++ STD Version 2017

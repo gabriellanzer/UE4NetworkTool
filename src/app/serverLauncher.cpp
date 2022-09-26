@@ -3,7 +3,6 @@
 // Third Party Includes
 #include <pfd.h>
 #include <fmt/format.h>
-#include <sstream>
 
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui/imgui.h>
@@ -324,7 +323,7 @@ void ServerLauncherWindow::LaunchServerProcess()
 	GetModuleFileName(nullptr, appPath, _MAX_PATH);
 	string fileName, fileExt;
 	string directory = rv::splitFilename(string(appPath), fileName, fileExt);
-	cmdLine += " " + directory; // " D:\\Aquiris\\wc2\\";
+	cmdLine += " D:\\Aquiris\\wc2\\"; // " " + directory; // " D:\\Aquiris\\wc2\\";
 
 	// Append UPROJECT
 	cmdLine += "HorizonChase2.uproject";
@@ -396,6 +395,33 @@ void ServerLauncherWindow::LaunchServerProcess()
 
 	// Launch a thread to perform async loading of the data
 	_hAsyncReadServerHandle = CreateThread(0, 0, AsyncReadServerStdout, this, 0, nullptr);
+
+	// Assign process to job object which will auto-terminate the server when the app crashes
+	HANDLE ghJob = CreateJobObject(nullptr, nullptr); // GLOBAL
+	if (ghJob == nullptr)
+	{
+		pfd::message jobCreationErrorDialog("Job Object - Creation Failed",
+											"Beware, if the app crashes the server process will NOT close!",
+											pfd::choice::ok, pfd::icon::error);
+	}
+
+	JOBOBJECT_EXTENDED_LIMIT_INFORMATION jobInfo = {0};
+
+	// Configure all child processes associated with the job to terminate when the
+	jobInfo.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+	if (!SetInformationJobObject(ghJob, JobObjectExtendedLimitInformation, &jobInfo, sizeof(jobInfo)))
+	{
+		pfd::message jobSetInfoErrorDialog("Job Object - Set Info Failed",
+										   "Beware, if the app crashes the server process will NOT close!",
+										   pfd::choice::ok, pfd::icon::error);
+	}
+
+	if (!AssignProcessToJobObject(ghJob, _serverProcInfo->hProcess))
+	{
+		pfd::message jobAssignServerErrorDialog("Job Object - Assign Server Failed",
+												"Beware, if the app crashes the server process will NOT close!",
+												pfd::choice::ok, pfd::icon::error);
+	}
 
 	// Close handles to the stdout pipe no longer needed by the child process.
 	// We have to close the stdout write handle in order to start reading from the other end.
@@ -558,9 +584,15 @@ void ServerLauncherWindow::PullServerProcessStatus()
 
 std::mutex ServerLauncherWindow::_threadMutex;
 
+void ServerLauncherWindow::CloseServerOnCrashCallback(void* pVoid)
+{
+	auto* window = static_cast<ServerLauncherWindow*>(pVoid);
+	window->ForceCloseServer();
+}
+
 DWORD ServerLauncherWindow::AsyncReadServerStdout(void* pVoid)
 {
-	auto* window = reinterpret_cast<ServerLauncherWindow*>(pVoid);
+	auto* window = static_cast<ServerLauncherWindow*>(pVoid);
 
 	constexpr size_t BUFSIZE = 4096;
 	DWORD dwRead, dwWritten;

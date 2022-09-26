@@ -45,6 +45,7 @@ class UE4ServerBootstrap : public rv::IApp
 	// Windows
 	class ServerLauncherWindow* _serverLauncherWindow;
 	class FrameAnalyzerWindow* _frameAnalyzerWindow;
+	class UnrealAssetBrowser* _unrealAssetBrowser;
 };
 
 #endif //!__APP__H__

@@ -1,6 +1,6 @@
 
 // Hide Console Window
-// #pragma comment(linker, "/SUBSYSTEM:windows /ENTRY:mainCRTStartup")
+//#pragma comment(linker, "/SUBSYSTEM:windows /ENTRY:mainCRTStartup")
 
 #include <app/app.h>
 #include <fstream>

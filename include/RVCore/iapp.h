@@ -2,34 +2,30 @@
 #define __IAPP__H__
 
 #include <chrono>
-#include <string>
+#include <vector>
+#include <functional>
+#include <type_traits>
 
 namespace rv
 {
 	class IApp
 	{
 		using highResClock = std::chrono::high_resolution_clock;
-		using duration = highResClock::duration;
-
-	  private:
-		const char* name;
-		bool sleeping;
-		double deltaTime;
-
-		IApp() = delete;
-		IApp(IApp&&) = delete;
-		IApp(const IApp&) = delete;
-		IApp& operator=(IApp&&) = delete;
-		IApp& operator=(const IApp&) = delete;
 
 	  public:
-		constexpr IApp(const char* name)
+		constexpr explicit IApp(const char* name)
 			: name(name), sleeping(false), deltaTime(0.016), shouldSleep(false), shouldWakeUp(true),
 			  shouldQuit(false){};
 		virtual ~IApp() = default;
 
 		void Run();
 		const char* GetName() { return name; };
+
+		IApp() = delete;
+		IApp(IApp&&) = delete;
+		IApp(const IApp&) = delete;
+		IApp& operator=(IApp&&) = delete;
+		IApp& operator=(const IApp&) = delete;
 
 	  protected:
 		virtual void Setup() = 0;
@@ -41,6 +37,11 @@ namespace rv
 		bool shouldSleep;
 		bool shouldWakeUp;
 		bool shouldQuit;
+
+	  private:
+		const char* name;
+		bool sleeping;
+		double deltaTime;
 	};
 
 	inline void IApp::Run()

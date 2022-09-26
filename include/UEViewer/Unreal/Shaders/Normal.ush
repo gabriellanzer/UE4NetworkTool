@@ -1,0 +1,214 @@
+/******************************************************************************
+ *	Per-pixel lighting shader with normalmap support
+ *****************************************************************************/
+
+// Debug modes
+//#define SHOW_BUMP			// show only normalmap
+//#define SHOW_SPECULAR		// show only specular component
+//#define NORMALMAP			// show mesh using single light from viewer; no texuring, specular from everything
+//#define WORLDNORMAL		// show world normals as color
+
+#define SPECULAR
+
+#ifndef DIFFUSE
+#define DIFFUSE		0
+#endif
+
+#ifndef CUBE
+#define CUBE		0
+#endif
+
+#ifdef SHOW_BUMP
+#undef EMISSIVE
+#endif
+
+#ifndef EMISSIVE
+#define EMISSIVE	0
+#endif
+
+
+#undef CUBE
+#define CUBE 1
+
+#if defined(CUBE) || defined(WORLDNORMAL)
+#define NEEDS_TANGENT_TO_WORLD
+#endif
+
+// Variables passed from vertex to fragment shader
+varying vec4 diffuse, ambient, specular;
+varying vec3 tangentLightDir;
+varying mat3 tbn;
+varying vec3 eyeVertexPos;
+#ifdef NEEDS_TANGENT_TO_WORLD
+varying mat3 tangentToWorld;
+#endif
+
+
+attribute vec4 normal;
+attribute vec3 tangent;
+//attribute vec3 binormal;
+
+
+// Parameters
+uniform sampler2D	diffTex;
+uniform sampler2D	normTex;
+uniform sampler2D	specTex;
+uniform sampler2D	spPowTex;
+uniform sampler2D	opacTex;
+uniform sampler2D	emisTex;
+uniform samplerCube	cubeTex;
+uniform sampler2D	maskTex;
+
+
+void VertexShaderMain()
+{
+	// light parameters
+	// gl_FrontMaterial.diffuse and gl_FrontMaterial.ambient are premultiplied by gl_Color (see docs/glsl.txt)
+	diffuse  = /*gl_FrontMaterial.diffuse * */ gl_Color * gl_LightSource[0].diffuse;
+	ambient  = /*gl_FrontMaterial.ambient * */ gl_Color * (gl_LightSource[0].ambient + gl_LightModel.ambient);
+	specular = gl_FrontMaterial.specular * gl_LightSource[0].specular;
+
+	// standard transformation code
+	gl_TexCoord[0] = gl_MultiTexCoord0;
+	gl_Position    = ftransform();
+
+	// get TBN in screen-space coordinate system
+	// this code may not work when TBN or ModelView is not normalized (it uses transpose())
+	vec3 n = normalize(normal.xyz);
+	vec3 t = normalize(tangent);
+	vec3 b = cross(n, t) * normal.w;
+	tbn = transpose(mat3(gl_ModelViewMatrix) * mat3(t, b, n));
+
+	// eye-space parameters
+	// note: gl_LightSource.position is already transformed to eye-space
+	eyeVertexPos = (gl_ModelViewMatrix * gl_Vertex).xyz;		// vertex position in eye space
+	vec3 eyeLightPos  = gl_LightSource[0].position.xyz;				// direction to light in eye space
+	tangentLightDir = normalize(tbn * (eyeLightPos - eyeVertexPos));
+
+#ifdef NEEDS_TANGENT_TO_WORLD
+	// matrix for conversion of tangent space vector to world space
+	//?? todo: it's almost 'tbn', shuld review variable names
+	tangentToWorld = mat3(t, b, n);
+#endif
+}
+
+
+#if DIFFUSE
+vec4 GetMaterialDiffuseColor(vec2 TexCoord)
+{
+	return texture2D(diffTex, TexCoord);
+}
+#endif // DIFFUSE
+
+vec3 GetMaterialNormal(vec2 TexCoord)
+{
+#if 0
+	return vec3(0.0, 0.0, 1.0);
+#else
+	return %s;
+#endif
+}
+
+vec3 GetMaterialSpecularColor(vec2 TexCoord)
+{
+#ifndef SHOW_BUMP
+	return %s;
+#else
+	return vec3(1.0);
+#endif
+}
+
+float GetMaterialSpecularPower(vec2 TexCoord)
+{
+	return %s;
+}
+
+float GetMaterialOpacity(vec2 TexCoord)
+{
+	return %s;
+}
+
+#if EMISSIVE
+vec3 GetMaterialEmissive(vec2 TexCoord)
+{
+	return %s;
+}
+#endif // EMISSIVE
+
+vec3 GetMaterialCubemap(vec3 TexCoord)
+{
+	return %s;
+}
+
+float GetCubemapMask(vec2 TexCoord)
+{
+	return %s;
+}
+
+
+void PixelShaderMain()
+{
+	vec2 TexCoord  = gl_TexCoord[0].st;
+
+	vec3 normal    = GetMaterialNormal(TexCoord);
+	%s
+	normal = normalize(normal);
+	vec3 nLightDir = normalize(tangentLightDir);
+	vec3 nEye      = normalize(tbn * -eyeVertexPos);	// eye is at (0,0,0), so direction to eye = -vertex
+
+	// ambient + diffuse
+	float NdotL    = max(dot(normal, nLightDir), 0.0);
+	vec4 color     = ambient + diffuse * NdotL;
+
+#if DIFFUSE
+	vec4 diffuse   = GetMaterialDiffuseColor(TexCoord);
+	color *= diffuse;
+#endif
+
+#ifdef SHOW_BUMP
+	color = vec4(0.1, 0.1, 0.1, 1.0);
+#endif
+
+#ifdef SPECULAR
+	// specular
+	// per-pixel half vector: average between direction from pixel to
+	// light and from pixel to viewer
+	vec3 halfVector = nLightDir + nEye;
+	vec3 halfV      = normalize(halfVector);
+	float NdotHV    = max(dot(normal, halfV), 0.0);
+	color.rgb += pow(NdotHV, GetMaterialSpecularPower(TexCoord)) * GetMaterialSpecularColor(TexCoord);
+#endif // SPECULAR
+
+#ifdef SHOW_SPECULAR
+	color.rgb = pow(NdotHV, GetMaterialSpecularPower(TexCoord)) * GetMaterialSpecularColor(TexCoord);
+#endif
+
+#if CUBE && !DIFFUSE
+	color = vec4(0.0, 0.0, 0.0, 1.0);
+#endif
+
+#if CUBE
+	vec3 reflectVec = tangentToWorld * reflect(nEye, normal);
+	vec3 reflectColor = GetMaterialCubemap(-reflectVec);
+	color.rgb += reflectColor * GetCubemapMask(TexCoord);
+#endif
+
+#if EMISSIVE
+	color.rgb += GetMaterialEmissive(TexCoord);
+#endif
+
+	color.a = GetMaterialOpacity(TexCoord);
+
+//	color.rgb = vec3(dot(normal, nEye), 0.3, 0.3);
+//	color.rgb = (normal * 0.5) + 0.5;
+//	color.rgb = (nEye * 0.5) + 0.5;
+//	color.rgb += pow(1.0 - dot(normal, nEye), 3.5) * vec3(0.5);	// Fresnel
+#ifdef NORMALMAP
+	color.rgb = pow(dot(normal, nEye), 3.5) * vec3(1.0);
+#endif
+#ifdef WORLDNORMAL
+	color.rgb = tangentToWorld * normal * 0.5 + 0.5;
+#endif
+
+	gl_FragColor = color;
+}
