@@ -6,5 +6,5 @@ class UnrealAssetBrowser
 	UnrealAssetBrowser() = default;
 	~UnrealAssetBrowser() = default;
 
-	void PrintAssetInfos();
+	void PrintAssetInfos(const char* searchDir);
 };

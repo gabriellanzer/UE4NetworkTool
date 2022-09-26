@@ -78,7 +78,7 @@ void UE4ServerBootstrap::Setup()
 
 	// Test Unreal Asset Browser
 	_unrealAssetBrowser = new UnrealAssetBrowser();
-	_unrealAssetBrowser->PrintAssetInfos();
+	_unrealAssetBrowser->PrintAssetInfos("D:\\Aquiris\\wc2\\Content\\");
 }
 
 void UE4ServerBootstrap::Awake() {}

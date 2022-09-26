@@ -1688,7 +1688,7 @@ class TArray : public FArray
 	// serializer helper; used from 'operator<<(FArchive, TArray<>)' only
 	static void SerializeItem(FArchive& Ar, void* item)
 	{
-		if (!TTypeInfo<T>::IsPod && Ar.IsLoading) new (item) T; // construct item before reading
+		if (!TTypeInfo<T>::IsPod && Ar.IsLoading) new (item)T; // construct item before reading
 		Ar << *(T*)item;										// serialize item
 	}
 

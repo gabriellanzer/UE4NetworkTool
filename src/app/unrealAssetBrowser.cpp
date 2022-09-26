@@ -1,9 +1,13 @@
 #include <app/unrealAssetBrowser.h>
 
 // Third Party Includes
+#include <fmt/format.h>
 #include <UEViewer/Unreal/UnCore.h>
+#include <UEViewer/Unreal/UnrealPackage/UnPackage.h>
 #include <UEViewer/Unreal/UnrealPackage/PackageUtils.h>
-#include "UEViewer/Unreal/UnrealPackage/UnPackage.h"
+
+// Using Directives
+using string = std::string;
 
 bool GExportInProgress = false;
 bool UE4EncryptedPak() { return false; }
@@ -15,9 +19,9 @@ int UE4UnversionedPackage(int verMin, int verMax)
 	return -1;
 }
 
-void UnrealAssetBrowser::PrintAssetInfos()
+void UnrealAssetBrowser::PrintAssetInfos(const char* searchDir)
 {
-	appSetRootDirectory("D:\\Aquiris\\wc2\\Content\\");
+	appSetRootDirectory(searchDir);
 
 	TArray<const CGameFileInfo*> Packages;
 	if (!Packages.Num())
@@ -48,7 +52,7 @@ void UnrealAssetBrowser::PrintAssetInfos()
 
 	ScanContent(Packages, nullptr);
 
-	FString Path = "";
+	FString filePath = "";
 	for (const CGameFileInfo* fileInfo : Packages)
 	{
 		if (!fileInfo->IsPackage()) continue;
@@ -67,16 +71,23 @@ void UnrealAssetBrowser::PrintAssetInfos()
 			continue;
 		}
 
-		for (int importIndex = 0; importIndex < package->Summary.ImportCount; importIndex++)
+		for (int exportIndex = 0; exportIndex < package->Summary.ExportCount; exportIndex++)
 		{
-			FObjectImport& imp = package->GetImport(importIndex);
-			if (strcmp(*imp.ObjectName, "RaceData") != 0) continue;
+			FObjectExport& exp = package->GetExport(exportIndex);
+			const char* className = package->GetClassNameFor(exp);
+			if (strcmp(className, "RaceData") != 0) continue;
 
-			// Print package path using stdout
-			fileInfo->GetRelativeName(Path);
-			fprintf(stdout, "Package (%s)\n", *Path);
+			// Get Object Export Name
+			char objFileName[128];
+			objFileName[0] = '\0';
+			package->GetFullExportName(exp, objFileName, sizeof(objFileName));
+			// Get asset file path without extension (yet with the '.' at the end)
+			fileInfo->GetRelativeName(filePath);
+			string assetFilePath(*filePath, filePath.Len() - strlen(fileInfo->GetExtension()));
+			// Compose final path name
+			string exportPath = fmt::format("/Game/{0}{1}", assetFilePath, objFileName);
+			fprintf(stdout, "%s\n", exportPath.c_str());
 		}
 	}
-
 	fflush(stdout);
 }

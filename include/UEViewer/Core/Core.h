@@ -12,6 +12,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <math.h>
+#include <new>
 
 #if _MSC_VER
 #	include <intrin.h>
@@ -384,40 +385,40 @@ void appFree(void *ptr);
 // C++ specs doesn't allow inlining of operator new/delete:  https://en.cppreference.com/w/cpp/memory/new/operator_new
 // All compilers are fine with that, except clang on macos. For this case we're providing "static" declaration deparately.
 
-FORCEINLINE void* operator new(size_t size)
-{
-	return appMalloc(size);
-}
-
-FORCEINLINE void* operator new[](size_t size)
-{
-	return appMalloc(size);
-}
-
-FORCEINLINE void operator delete(void* ptr)
-{
-	appFree(ptr);
-}
-
-FORCEINLINE void operator delete[](void* ptr)
-{
-	appFree(ptr);
-}
-
+//FORCEINLINE void* operator new(size_t size)
+//{
+//	return appMalloc(size);
+//}
+//
+//FORCEINLINE void* operator new[](size_t size)
+//{
+//	return appMalloc(size);
+//}
+//
+//FORCEINLINE void operator delete(void* ptr)
+//{
+//	appFree(ptr);
+//}
+//
+//FORCEINLINE void operator delete[](void* ptr)
+//{
+//	appFree(ptr);
+//}
+//
 #endif // __APPLE__
-
-
-// C++17 (delete with alignment)
-FORCEINLINE void operator delete(void* ptr, size_t)
-{
-	appFree(ptr);
-}
-
-// inplace new
-FORCEINLINE void* operator new(size_t /*size*/, void* ptr)
-{
-	return ptr;
-}
+//
+//
+//// C++17 (delete with alignment)
+//FORCEINLINE void operator delete(void* ptr, size_t)
+//{
+//	appFree(ptr);
+//}
+//
+//// inplace new
+//FORCEINLINE void* operator new(size_t /*size*/, void* ptr)
+//{
+//	return ptr;
+//}
 
 
 #define DEFAULT_ALIGNMENT		8
