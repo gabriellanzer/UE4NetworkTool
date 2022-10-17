@@ -78,7 +78,7 @@ void UE4ServerBootstrap::Setup()
 
 	// Test Unreal Asset Browser
 	_unrealAssetBrowser = new UnrealAssetBrowser();
-	_unrealAssetBrowser->PrintAssetInfos("D:\\Aquiris\\wc2\\Content\\");
+	// _unrealAssetBrowser->LoadAssetInfos("D:\\Aquiris\\wc2\\Content\\");
 }
 
 void UE4ServerBootstrap::Awake() {}
@@ -153,6 +153,18 @@ void UE4ServerBootstrap::DrawAppScreen(double deltaTime)
 				showDemoWindows = true;
 			}
 			ImGui::EndMenu();
+		}
+
+		if (!_unrealAssetBrowser->LoadAssetHandle._Is_ready())
+		{
+			ImGui::TextUnformatted("Loading Assets");
+		}
+		else
+		{
+			if (ImGui::Button("Print Assets"))
+			{
+				_unrealAssetBrowser->PrintRaceAssets();
+			}
 		}
 
 		ImGui::Text("FPS %d (%.2fms)", static_cast<int>(1.0 / deltaTime), deltaTime * 1000.0);

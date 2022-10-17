@@ -7,6 +7,7 @@
 #include <imgui/imgui.h>
 #include <pfd.h>
 #include <stb_image.h>
+#include <taskflow/algorithm/pipeline.hpp>
 
 // Internal Includes
 #include <RVCore/utils.h>
@@ -18,9 +19,9 @@ FrameAnalyzerWindow::~FrameAnalyzerWindow()
 	_window = nullptr;
 
 	// Release Graphics API textures
-	for (const SnapshotTexture& texture : _textures)
+	for (const FrameTexture& texture : _textures)
 	{
-		glDeleteTextures(1, &texture.glTexture);
+		glDeleteTextures(1, &texture.GlTexture);
 	}
 
 	_loadFramesList.clear();
@@ -80,7 +81,7 @@ void FrameAnalyzerWindow::Draw(ImGuiID dockSpaceId, double deltaTime)
 		}
 
 		// Try to show any available snapshot in timeline
-		SnapshotTexture& texture = _textures[_imageOffset];
+		FrameTexture& texture = _textures[_imageOffset];
 
 		// Check if we should increment imageOffset based on input
 		static double playbackTime = 0;
@@ -98,7 +99,7 @@ void FrameAnalyzerWindow::Draw(ImGuiID dockSpaceId, double deltaTime)
 				_autoPlay = false;
 			}
 
-			if (playbackTime > texture.duration)
+			if (playbackTime > texture.Duration)
 			{
 				_imageOffset = (_imageOffset + 1) % size;
 				playbackTime = 0;
@@ -138,7 +139,7 @@ void FrameAnalyzerWindow::Draw(ImGuiID dockSpaceId, double deltaTime)
 		// Maintain aspect-ratio and fit by touching the corners from within
 		ImVec2 imageDrawSize = availCanvasSize;
 		float hAlignOffset = 0.0f; // Horizontal alignment offset
-		float imageAspect = texture.width / (float)texture.height;
+		float imageAspect = texture.Width / (float)texture.Height;
 		float availAspect = availCanvasSize.x / (float)availCanvasSize.y;
 		if (availAspect > imageAspect) // Canvas is wider than image (fit by height)
 		{
@@ -152,7 +153,7 @@ void FrameAnalyzerWindow::Draw(ImGuiID dockSpaceId, double deltaTime)
 
 		// Ensure the image is centered if it has any gaps because of aspect correction
 		ImGui::SetCursorPosX(hAlignOffset);
-		ImGui::Image(reinterpret_cast<void*>(texture.glTexture), imageDrawSize);
+		ImGui::Image(reinterpret_cast<void*>(texture.GlTexture), imageDrawSize);
 
 		ImGui::SetNextItemWidth(availCanvasSize.x);
 		ImGui::SliderInt("##_imageOffsetSlider", &_imageOffset, 0, size - 1, "Frame %d");
@@ -179,11 +180,85 @@ void FrameAnalyzerWindow::DrawLoadingFramesModal()
 	ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 	if (ImGui::BeginPopupModal("Loading Frames", nullptr, flags))
 	{
-		// Fetch currently loading snapshot path
-		const string& snapshotPath = _loadFramesList[_loadFrameIt];
-		_loadFrameIt++;
-
 		size_t loadingListSize = _loadFramesList.size();
+
+		// We only flush if there are more than 32 texture in the buffer or there are less than 32 textures
+		// remaining. This ensures we don't keep locking the async tasks too often to pull from the buffer.
+		if (_uploadImageBuff.size() > 32 || (loadingListSize - _loadFrameIt) <= 32)
+		{
+			_uploadImageLock.lock();
+			_uploadImageDeque.insert(_uploadImageDeque.end(), _uploadImageBuff.begin(), _uploadImageBuff.end());
+			_uploadImageBuff.clear();
+			_uploadImageLock.unlock();
+		}
+
+		if (!_uploadImageDeque.empty())
+		{
+			constexpr int jobsCount = 8;
+			LoadImageJob uploadJobs[jobsCount];
+
+			for (int jobsIt = 0; jobsIt < jobsCount; ++jobsIt)
+			{
+				uploadJobs[jobsIt] = std::forward<LoadImageJob>(_uploadImageDeque.front());
+				_uploadImageDeque.pop_front();
+			}
+
+			// Filter for failed load jobs
+			int uploadCount = 0;
+			for (int jobsIt = 0; jobsIt < jobsCount; ++jobsIt)
+			{
+				++_loadFrameIt;
+				LoadImageJob& job = uploadJobs[jobsIt];
+				if (job.ImageData == nullptr)
+				{
+					// Error handling
+					pfd::message openImageDialog("Open Image Error",
+												 fmt::format("Couldn't Load Image: {0}", job.ImagePath),
+												 pfd::choice::ok, pfd::icon::error);
+					continue;
+				}
+				++uploadCount;
+			}
+
+			// Generate OpenGL image handle
+			glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+			unsigned int textureIds[jobsCount];
+			glGenTextures(uploadCount, textureIds);
+
+			// Upload Frame Textures to OpenGL (up to 32 per frame)
+			for (int jobsIt = 0, uploadIt = 0; jobsIt < jobsCount; ++jobsIt)
+			{
+				LoadImageJob& job = uploadJobs[jobsIt];
+				if (job.ImageData == nullptr) continue;
+
+				// Upload it only increments for valid upload jobs
+				unsigned int textureId = textureIds[uploadIt];
+				uploadIt++;
+
+				// We got ourselves a frame (if the analyzer is not open, do it now)
+				ShouldShow = true;
+
+				// Upload image to OpenGL
+				glBindTexture(GL_TEXTURE_2D, textureId);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+				glTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGB, job.Width, job.Height, 0, GL_RGB, GL_UNSIGNED_BYTE,
+							 job.ImageData);
+
+				// Free RAM resources
+				stbi_image_free(job.ImageData);
+
+				// Parse file-name, extension and directory
+				string fileName, fileExt;
+				string directory = rv::splitFilename(job.ImagePath, fileName, fileExt);
+
+				// Hold snapshot resource
+				FrameTexture snapshot = {std::forward<string>(fileName), textureId, job.Width, job.Height};
+				_textures.push_back(snapshot);
+			}
+
+			glBindTexture(GL_TEXTURE_2D, 0);
+		}
 
 		// Display loading progress bar
 		ImGui::ProgressBar(_loadFrameIt / (float)loadingListSize);
@@ -194,43 +269,6 @@ void FrameAnalyzerWindow::DrawLoadingFramesModal()
 		auto textWidth = ImGui::CalcTextSize(progressText.c_str()).x;
 		ImGui::SetCursorPosX((windowWidth - textWidth) * 0.5f);
 		ImGui::Text("%s", progressText.c_str());
-
-		// Parse file-name, extension and directory
-		string fileName, fileExt;
-		string directory = rv::splitFilename(snapshotPath, fileName, fileExt);
-
-		// Load image from disk
-		int w, h, comp;
-		unsigned char* image = stbi_load(snapshotPath.c_str(), &w, &h, &comp, STBI_rgb);
-		if (image == nullptr)
-		{
-			// Error handling
-			pfd::message openImageDialog("Open Image Error", fmt::format("Couldn't Load Image: {0}", snapshotPath),
-										 pfd::choice::ok, pfd::icon::error);
-			return;
-		}
-
-		// We got ourselves a frame (if the analyzer is not open, do it now)
-		ShouldShow = true;
-
-		// Generate OpenGL image handle
-		glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-		unsigned int textureId;
-		glGenTextures(1, &textureId);
-
-		// Upload image to OpenGL
-		glBindTexture(GL_TEXTURE_2D, textureId);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
-		glBindTexture(GL_TEXTURE_2D, 0);
-
-		// Free RAM resources
-		stbi_image_free(image);
-
-		// Hold snapshot resource
-		SnapshotTexture snapshot = {fileName, textureId, w, h};
-		_textures.push_back(snapshot);
 
 		// Close popup condition
 		if (_loadFrameIt == loadingListSize)
@@ -257,4 +295,37 @@ void FrameAnalyzerWindow::ImportFrameSnapshots()
 
 	// Reserve texture slots, the load list will be loaded 1 image per frame
 	_textures.reserve(_textures.size() + _loadFramesList.size());
+
+	// Use taskflow to create a parallel loading stage pipeflow with a serial thread-locked queued one
+	static tf::Pipeline _loadImagePipeline =
+		tf::Pipeline(64,
+					 tf::Pipe{tf::PipeType::SERIAL,
+							  [&](tf::Pipeflow& pf)
+							  {
+								  // Stop emitting tokens if we reached loading queue end
+								  if (pf.token() == _loadFramesList.size())
+								  {
+									  pf.stop();
+									  return;
+								  }
+
+								  // Enqueue the image to be loaded from the pipe
+								  _loadImagePipeData[pf.line()] = {_loadFramesList[pf.token()]};
+							  }},
+					 tf::Pipe{tf::PipeType::PARALLEL,
+							  [&](tf::Pipeflow& pf)
+							  {
+								  LoadImageJob& job = _loadImagePipeData[pf.line()];
+								  job.ImageData =
+									  stbi_load(job.ImagePath.c_str(), &job.Width, &job.Height, &job.NumComp, STBI_rgb);
+							  }},
+					 tf::Pipe{tf::PipeType::SERIAL, [&](tf::Pipeflow& pf)
+							  {
+								  LoadImageJob& job = _loadImagePipeData[pf.line()];
+								  _uploadImageLock.lock();
+								  _uploadImageBuff.push_back(std::forward<LoadImageJob>(job));
+								  _uploadImageLock.unlock();
+							  }});
+	_taskFlow.composed_of(_loadImagePipeline).name("pipeline");
+	_taskExecutor.run(_taskFlow);
 }

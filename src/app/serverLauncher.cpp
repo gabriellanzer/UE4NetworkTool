@@ -323,7 +323,7 @@ void ServerLauncherWindow::LaunchServerProcess()
 	GetModuleFileName(nullptr, appPath, _MAX_PATH);
 	string fileName, fileExt;
 	string directory = rv::splitFilename(string(appPath), fileName, fileExt);
-	cmdLine += " D:\\Aquiris\\wc2\\"; // " " + directory; // " D:\\Aquiris\\wc2\\";
+	cmdLine += " " + directory; // " D:\\Aquiris\\wc2\\";
 
 	// Append UPROJECT
 	cmdLine += "HorizonChase2.uproject";
