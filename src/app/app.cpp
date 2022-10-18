@@ -22,7 +22,7 @@ using vector = std::vector<T>;
 
 static bool showDemoWindows = false;
 
-void UE4ServerBootstrap::Setup()
+void UE4NetworkTool::Setup()
 {
 	// Setup Graphics APIs
 	glfwSetErrorCallback(OnGlfwErrorCallback);
@@ -81,11 +81,11 @@ void UE4ServerBootstrap::Setup()
 	// _unrealAssetBrowser->LoadAssetInfos("D:\\Aquiris\\wc2\\Content\\");
 }
 
-void UE4ServerBootstrap::Awake() {}
+void UE4NetworkTool::Awake() {}
 
-void UE4ServerBootstrap::Sleep() {}
+void UE4NetworkTool::Sleep() {}
 
-void UE4ServerBootstrap::Shutdown()
+void UE4NetworkTool::Shutdown()
 {
 	// App specific cleanup
 	delete _serverLauncherWindow;
@@ -107,7 +107,7 @@ void UE4ServerBootstrap::Shutdown()
 	glfwTerminate();
 }
 
-void UE4ServerBootstrap::Update(double deltaTime)
+void UE4NetworkTool::Update(double deltaTime)
 {
 	shouldQuit = glfwWindowShouldClose(_window);
 
@@ -133,7 +133,7 @@ void UE4ServerBootstrap::Update(double deltaTime)
 	glfwSwapBuffers(_window);
 }
 
-void UE4ServerBootstrap::DrawAppScreen(double deltaTime)
+void UE4NetworkTool::DrawAppScreen(double deltaTime)
 {
 	if (ImGui::BeginMainMenuBar())
 	{

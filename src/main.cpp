@@ -9,7 +9,7 @@ int main(int argc, char** argv)
 {
 	setlocale(LC_ALL, "Portuguese");
 
-	UE4ServerBootstrap app;
+	UE4NetworkTool app;
 	app.Run();
 
 	return 0;

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.1.0)
 
 # Project Setup
-project(UE4ServerBootstrap VERSION 0.0.3)
+project(UE4NetworkTool VERSION 0.0.3)
 
 # Configure Conan
 include(${CMAKE_SOURCE_DIR}/conan.cmake)
@@ -25,23 +25,23 @@ set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} /MANIFEST:NO")
 # Configure Executable
 include_directories(${CMAKE_SOURCE_DIR}/src)
 file(GLOB_RECURSE SRC_FILES "${CMAKE_SOURCE_DIR}/src/*.c*" "${CMAKE_SOURCE_DIR}/include/UEViewer/libs/*.c*" "${CMAKE_SOURCE_DIR}/src/*.h*")
-add_executable(ue4_server_bootstrap ${SRC_FILES})
+add_executable(ue4_network_tool ${SRC_FILES})
 
 # Target for C++ STD Version 2017
-target_compile_features(ue4_server_bootstrap PRIVATE cxx_std_17)
-target_compile_options(ue4_server_bootstrap PRIVATE -I -pthread)
-target_link_options(ue4_server_bootstrap PRIVATE -mwindows)
+target_compile_features(ue4_network_tool PRIVATE cxx_std_17)
+target_compile_options(ue4_network_tool PRIVATE -I -pthread)
+target_link_options(ue4_network_tool PRIVATE -mwindows)
 
-target_link_libraries(ue4_server_bootstrap CONAN_PKG::glfw)
-target_link_libraries(ue4_server_bootstrap CONAN_PKG::fmt)
+target_link_libraries(ue4_network_tool CONAN_PKG::glfw)
+target_link_libraries(ue4_network_tool CONAN_PKG::fmt)
 
 set_target_properties(
-    ue4_server_bootstrap
+	ue4_network_tool
     PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/lib/${CMAKE_BUILD_TYPE}/"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/lib/${CMAKE_BUILD_TYPE}/"
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE}/"
-    OUTPUT_NAME "UE4ServerBootstrap ${PROJECT_VERSION}"
+    OUTPUT_NAME "UE4NetworkTool ${PROJECT_VERSION}"
 )
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)

@@ -11,16 +11,17 @@
 
 #include <RVCore/iapp.h>
 
-class UE4ServerBootstrap : public rv::IApp
+class UE4NetworkTool : public rv::IApp
 {
   public:
-	UE4ServerBootstrap()
-		: rv::IApp("UE4 Server Bootstrap"), _serverLauncherWindow(nullptr), _frameAnalyzerWindow(nullptr){};
-	~UE4ServerBootstrap() override = default;
-	UE4ServerBootstrap(UE4ServerBootstrap&&) = delete;
-	UE4ServerBootstrap(const UE4ServerBootstrap&) = delete;
-	UE4ServerBootstrap& operator=(UE4ServerBootstrap&&) = delete;
-	UE4ServerBootstrap& operator=(const UE4ServerBootstrap&) = delete;
+	UE4NetworkTool()
+		: rv::IApp("UE4 Network Tool"), _serverLauncherWindow(nullptr), _frameAnalyzerWindow(nullptr),
+		  _unrealAssetBrowser(nullptr){};
+	~UE4NetworkTool() override = default;
+	UE4NetworkTool(UE4NetworkTool&&) = delete;
+	UE4NetworkTool(const UE4NetworkTool&) = delete;
+	UE4NetworkTool& operator=(UE4NetworkTool&&) = delete;
+	UE4NetworkTool& operator=(const UE4NetworkTool&) = delete;
 
 	void Awake() override;
 	void Setup() override;
