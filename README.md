@@ -9,3 +9,14 @@ This project uses CMake as it's buil system generator and Conan as a dependency 
 After installing both, you can open the CMake GUI and configure the CMake project. The configure step will invoke Conan, so make sure it is mapped in the PATH and is accessible from command line. Conan will then download any existing precompiled binaries or build them from source for the specified compiler-target profile.
 
 This setup works great with Ninja as a Generator for either VSCode or CLion. It will also work if you generate a Visual Studio Solution. Compiling with Clang in Windows is a little trickier, you must force CMake to use Clang compiler through environmental variables (at least for the first configure run). If you don't, the program's code will try to compile with Clang but all dependencies downloaded with Conan will use MSVC, thus break the CMake configure step with errors saying the compilers missmatch.
+
+## Dependencies
+The project depends on the following libraries so far:
+- [GLFW](https://www.glfw.org/)
+- [Glad](https://github.com/Dav1dde/glad)
+- [ImGUI - Docking Branch](https://github.com/ocornut/imgui/)
+- [ImPlot](https://github.com/epezent/implot)
+- [Portable File Dialogs - PFD](https://github.com/samhocevar/portable-file-dialogs)
+- [UEViewer](https://github.com/gildor2/UEViewer)
+- [FMT](https://github.com/fmtlib/fmt)
+- [CppDelegate](https://www.codeproject.com/Articles/11015/The-Impossibly-Fast-C-Delegates)
