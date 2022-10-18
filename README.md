@@ -12,11 +12,11 @@ This setup works great with Ninja as a Generator for either VSCode or CLion. It 
 
 ## Dependencies
 The project depends on the following libraries so far:
-- [GLFW](https://www.glfw.org/)
-- [Glad](https://github.com/Dav1dde/glad)
-- [ImGUI - Docking Branch](https://github.com/ocornut/imgui/)
-- [ImPlot](https://github.com/epezent/implot)
-- [Portable File Dialogs - PFD](https://github.com/samhocevar/portable-file-dialogs)
-- [UEViewer](https://github.com/gildor2/UEViewer)
-- [FMT](https://github.com/fmtlib/fmt)
-- [CppDelegate](https://www.codeproject.com/Articles/11015/The-Impossibly-Fast-C-Delegates)
+- [GLFW](https://www.glfw.org/) - for input and application window management
+- [Glad](https://github.com/Dav1dde/glad) - for OpenGL Loading/Calling
+- [ImGUI - Docking Branch](https://github.com/ocornut/imgui/) - for the pretty UI and internal Windows
+- [ImPlot](https://github.com/epezent/implot) - for pretty plots (not in used ATM)
+- [Portable File Dialogs - PFD](https://github.com/samhocevar/portable-file-dialogs) - for file picking and errors
+- [UEViewer](https://github.com/gildor2/UEViewer) - to query for existing assets of an specific type
+- [FMT](https://github.com/fmtlib/fmt) - to have nicely formatted strings (really fast)
+- [CppDelegate](https://www.codeproject.com/Articles/11015/The-Impossibly-Fast-C-Delegates) - to have fast callbacks (not in use ATM)
