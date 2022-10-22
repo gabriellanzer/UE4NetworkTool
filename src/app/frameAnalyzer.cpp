@@ -155,7 +155,7 @@ void FrameAnalyzerWindow::Draw(ImGuiID dockSpaceId, double deltaTime)
 
 		// Ensure the image is centered if it has any gaps because of aspect correction
 		ImGui::SetCursorPosX(hAlignOffset);
-		ImGui::Image(reinterpret_cast<void*>(texture.TextureId), imageDrawSize);
+		ImGui::Image(reinterpret_cast<void*>((intptr_t)texture.TextureId), imageDrawSize);
 
 		ImGui::SetNextItemWidth(availCanvasSize.x);
 		ImGui::SliderInt("##_imageOffsetSlider", &_imageOffset, 0, size - 1, "Frame %d");
@@ -219,10 +219,8 @@ void FrameAnalyzerWindow::DrawLoadingFramesModal()
 				if (job.ImageData == nullptr)
 				{
 					// Error handling
-					pfd::message openImageDialog(
-						"Open Image Error", fmt::format("Couldn't Load Image: {0}", job.ImagePath), pfd::choice::ok,
-						pfd::icon::error
-					);
+					pfd::message openImageDialog("Open Image Error",
+						fmt::format("Couldn't Load Image: {0}", job.ImagePath), pfd::choice::ok, pfd::icon::error);
 					continue;
 				}
 
@@ -259,9 +257,8 @@ void FrameAnalyzerWindow::DrawLoadingFramesModal()
 				glBufferData(GL_PIXEL_UNPACK_BUFFER, textureSize, 0, GL_STREAM_DRAW);
 
 				// map the buffer object into client's memory
-				void* gpuAsyncData = glMapBufferRange(
-					GL_PIXEL_UNPACK_BUFFER, 0, textureSize, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT
-				);
+				void* gpuAsyncData = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, textureSize,
+					GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
 				if (gpuAsyncData)
 				{
 					// Copy image memory to async stream buffer
@@ -275,9 +272,8 @@ void FrameAnalyzerWindow::DrawLoadingFramesModal()
 				stbi_image_free(job.ImageData);
 
 				// Enqueu image for upload sync
-				_syncImageUploadQueue.emplace(
-					std::forward<string>(job.ImagePath), job.Width, job.Height, pixelBuffId, textureId
-				);
+				_syncImageUploadQueue.emplace(std::forward<string>(job.ImagePath), job.Width, job.Height, pixelBuffId,
+					textureId);
 			}
 
 			// Unbind any used OpenGL object
@@ -298,9 +294,8 @@ void FrameAnalyzerWindow::DrawLoadingFramesModal()
 				glBindBuffer(GL_PIXEL_UNPACK_BUFFER, job.PixelBuffId);
 				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-				glTexImage2D(
-					GL_TEXTURE_2D, 0, GL_COMPRESSED_RGB, job.Width, job.Height, 0, GL_RGB, GL_UNSIGNED_BYTE, 0
-				);
+				glTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGB, job.Width, job.Height, 0, GL_RGB, GL_UNSIGNED_BYTE,
+					0);
 
 				// Parse file-name, extension and directory
 				string fileName, fileExt;
@@ -345,8 +340,7 @@ void FrameAnalyzerWindow::ImportFrameSnapshots()
 {
 	const string title = "Import Frame Snapshot(s)";
 	const auto filters = vector<string>(
-		{"Image File(s) (*.jpeg,*.png,*.tga,*.bmp,*.gif)", "*.jpeg;*.png;*.tga;*.bmp;*.gif", "All Files", "*"}
-	);
+		{"Image File(s) (*.jpeg,*.png,*.tga,*.bmp,*.gif)", "*.jpeg;*.png;*.tga;*.bmp;*.gif", "All Files", "*"});
 	const pfd::opt options = pfd::opt::multiselect;
 	_loadFramesList = pfd::open_file(title, "C:/", filters, options).result();
 
@@ -357,10 +351,8 @@ void FrameAnalyzerWindow::ImportFrameSnapshots()
 	_textures.reserve(_textures.size() + _loadFramesList.size());
 
 	// Use taskflow to create a parallel loading stage pipeflow with a serial thread-locked queued one
-	static tf::Pipeline _loadImagePipeline = tf::Pipeline(
-		16,
-		tf::Pipe {
-			tf::PipeType::SERIAL,
+	static tf::Pipeline _loadImagePipeline = tf::Pipeline(16,
+		tf::Pipe {tf::PipeType::SERIAL,
 			[&](tf::Pipeflow& pf)
 			{
 				// Stop emitting tokens if we reached loading queue end
@@ -373,24 +365,20 @@ void FrameAnalyzerWindow::ImportFrameSnapshots()
 				// Enqueue the image to be loaded from the pipe
 				_loadImagePipeData[pf.line()] = {_loadFramesList[pf.token()]};
 			}},
-		tf::Pipe {
-			tf::PipeType::PARALLEL,
+		tf::Pipe {tf::PipeType::PARALLEL,
 			[&](tf::Pipeflow& pf)
 			{
 				LoadImageJob& job = _loadImagePipeData[pf.line()];
 				job.ImageData = stbi_load(job.ImagePath.c_str(), &job.Width, &job.Height, &job.NumComp, STBI_rgb);
 				job.NumComp = STBI_rgb;
 			}},
-		tf::Pipe {
-			tf::PipeType::SERIAL,
-			[&](tf::Pipeflow& pf)
+		tf::Pipe {tf::PipeType::SERIAL, [&](tf::Pipeflow& pf)
 			{
 				LoadImageJob& job = _loadImagePipeData[pf.line()];
 				_uploadImageLock.lock();
 				_uploadImageBuff.push_back(std::forward<LoadImageJob>(job));
 				_uploadImageLock.unlock();
-			}}
-	);
+			}});
 	_taskFlow.composed_of(_loadImagePipeline).name("pipeline");
 	_taskExecutor.run(_taskFlow);
 }

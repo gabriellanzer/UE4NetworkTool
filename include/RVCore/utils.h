@@ -121,7 +121,7 @@ namespace rv
 	inline uint32_t crc32(std::string str)
 	{
 		const char* cStr = str.c_str();
-		const uint32_t strSize = str.size();
+		const uint32_t strSize = static_cast<uint32_t>(str.size());
 		const uint8_t* strBuff = reinterpret_cast<const uint8_t*>(cStr);
 		return crc32(strBuff, strSize);
 	}
