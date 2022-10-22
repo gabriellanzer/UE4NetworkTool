@@ -7,10 +7,12 @@
 #include <imgui/imgui.h>
 #include <pfd.h>
 #include <stb_image.h>
+#include <string.h>
 #include <taskflow/algorithm/pipeline.hpp>
 
 // Internal Includes
 #include <RVCore/utils.h>
+#include <utility>
 
 FrameAnalyzerWindow::~FrameAnalyzerWindow()
 {
@@ -21,7 +23,7 @@ FrameAnalyzerWindow::~FrameAnalyzerWindow()
 	// Release Graphics API textures
 	for (const FrameTexture& texture : _textures)
 	{
-		glDeleteTextures(1, &texture.GlTexture);
+		glDeleteTextures(1, &texture.TextureId);
 	}
 
 	_loadFramesList.clear();
@@ -153,7 +155,7 @@ void FrameAnalyzerWindow::Draw(ImGuiID dockSpaceId, double deltaTime)
 
 		// Ensure the image is centered if it has any gaps because of aspect correction
 		ImGui::SetCursorPosX(hAlignOffset);
-		ImGui::Image(reinterpret_cast<void*>(texture.GlTexture), imageDrawSize);
+		ImGui::Image(reinterpret_cast<void*>(texture.TextureId), imageDrawSize);
 
 		ImGui::SetNextItemWidth(availCanvasSize.x);
 		ImGui::SliderInt("##_imageOffsetSlider", &_imageOffset, 0, size - 1, "Frame %d");
@@ -166,7 +168,7 @@ void FrameAnalyzerWindow::Draw(ImGuiID dockSpaceId, double deltaTime)
 
 void FrameAnalyzerWindow::DrawLoadingFramesModal()
 {
-	if (_loadFramesList.empty()) return;
+	if (_loadFramesList.empty() && _syncImageUploadQueue.empty()) return;
 
 	// This is our first time showing the modal, trigger it up
 	if (_loadFrameIt == 0)
@@ -194,8 +196,9 @@ void FrameAnalyzerWindow::DrawLoadingFramesModal()
 
 		if (!_uploadImageDeque.empty())
 		{
-			constexpr int jobsCount = 8;
-			LoadImageJob uploadJobs[jobsCount];
+			constexpr int jobsMaxCount = 32;
+			const int jobsCount = min(jobsMaxCount, (int)_uploadImageDeque.size());
+			LoadImageJob uploadJobs[jobsMaxCount];
 
 			for (int jobsIt = 0; jobsIt < jobsCount; ++jobsIt)
 			{
@@ -207,56 +210,112 @@ void FrameAnalyzerWindow::DrawLoadingFramesModal()
 			int uploadCount = 0;
 			for (int jobsIt = 0; jobsIt < jobsCount; ++jobsIt)
 			{
+				// We increment the load iterator regardless of loading
+				// success as it is used to track operation completness
 				++_loadFrameIt;
+
+				// Check for failed jobs
 				LoadImageJob& job = uploadJobs[jobsIt];
 				if (job.ImageData == nullptr)
 				{
 					// Error handling
-					pfd::message openImageDialog("Open Image Error",
-												 fmt::format("Couldn't Load Image: {0}", job.ImagePath),
-												 pfd::choice::ok, pfd::icon::error);
+					pfd::message openImageDialog(
+						"Open Image Error", fmt::format("Couldn't Load Image: {0}", job.ImagePath), pfd::choice::ok,
+						pfd::icon::error
+					);
 					continue;
 				}
+
+				// Only those that didn't fail are uploaded
 				++uploadCount;
 			}
 
 			// Generate OpenGL image handle
 			glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-			unsigned int textureIds[jobsCount];
+
+			unsigned int pixelBuffIds[jobsMaxCount];
+			glGenBuffers(uploadCount, pixelBuffIds);
+
+			unsigned int textureIds[jobsMaxCount];
 			glGenTextures(uploadCount, textureIds);
 
-			// Upload Frame Textures to OpenGL (up to 32 per frame)
+			// Upload CPU Data to Pixel Buffer Objects (for async transfer)
 			for (int jobsIt = 0, uploadIt = 0; jobsIt < jobsCount; ++jobsIt)
 			{
 				LoadImageJob& job = uploadJobs[jobsIt];
 				if (job.ImageData == nullptr) continue;
 
-				// Upload it only increments for valid upload jobs
+				// Upload It only increments for valid upload jobs
+				unsigned int pixelBuffId = pixelBuffIds[uploadIt];
 				unsigned int textureId = textureIds[uploadIt];
 				uploadIt++;
 
 				// We got ourselves a frame (if the analyzer is not open, do it now)
 				ShouldShow = true;
 
-				// Upload image to OpenGL
-				glBindTexture(GL_TEXTURE_2D, textureId);
+				// Upload image to Pixel Buffer Object
+				glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pixelBuffId);
+				const int textureSize = job.Width * job.Height * 3;
+				glBufferData(GL_PIXEL_UNPACK_BUFFER, textureSize, 0, GL_STREAM_DRAW);
+
+				// map the buffer object into client's memory
+				void* gpuAsyncData = glMapBufferRange(
+					GL_PIXEL_UNPACK_BUFFER, 0, textureSize, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT
+				);
+				if (gpuAsyncData)
+				{
+					// Copy image memory to async stream buffer
+					memcpy(gpuAsyncData, job.ImageData, textureSize);
+
+					// Release the mapped buffer
+					glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
+				}
+
+				// Free CPU memory resources
+				stbi_image_free(job.ImageData);
+
+				// Enqueu image for upload sync
+				_syncImageUploadQueue.emplace(
+					std::forward<string>(job.ImagePath), job.Width, job.Height, pixelBuffId, textureId
+				);
+			}
+
+			// Unbind any used OpenGL object
+			glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+			glBindTexture(GL_TEXTURE_2D, 0);
+		}
+
+		// Every frame we sync a number of frames from the sync queue
+		if (!_syncImageUploadQueue.empty())
+		{
+			constexpr int syncMaxCount = 1;
+			const int syncCount = min(syncMaxCount, (int)_syncImageUploadQueue.size());
+			for (int syncIt = 0; syncIt < syncCount; syncIt++)
+			{
+				const SyncImageUploadJob& job = _syncImageUploadQueue.front();
+
+				glBindTexture(GL_TEXTURE_2D, job.TextureId);
+				glBindBuffer(GL_PIXEL_UNPACK_BUFFER, job.PixelBuffId);
 				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-				glTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGB, job.Width, job.Height, 0, GL_RGB, GL_UNSIGNED_BYTE,
-							 job.ImageData);
-
-				// Free RAM resources
-				stbi_image_free(job.ImageData);
+				glTexImage2D(
+					GL_TEXTURE_2D, 0, GL_COMPRESSED_RGB, job.Width, job.Height, 0, GL_RGB, GL_UNSIGNED_BYTE, 0
+				);
 
 				// Parse file-name, extension and directory
 				string fileName, fileExt;
 				string directory = rv::splitFilename(job.ImagePath, fileName, fileExt);
 
 				// Hold snapshot resource
-				FrameTexture snapshot = {std::forward<string>(fileName), textureId, job.Width, job.Height};
+				FrameTexture snapshot = {std::forward<string>(fileName), job.TextureId, job.Width, job.Height};
 				_textures.push_back(snapshot);
+				_syncImageUploadQueue.pop();
+
+				// Release Pixel Buffer Object
+				glDeleteBuffers(1, &job.PixelBuffId);
 			}
 
+			glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 			glBindTexture(GL_TEXTURE_2D, 0);
 		}
 
@@ -286,7 +345,8 @@ void FrameAnalyzerWindow::ImportFrameSnapshots()
 {
 	const string title = "Import Frame Snapshot(s)";
 	const auto filters = vector<string>(
-		{"Image File(s) (*.jpeg,*.png,*.tga,*.bmp,*.gif)", "*.jpeg;*.png;*.tga;*.bmp;*.gif", "All Files", "*"});
+		{"Image File(s) (*.jpeg,*.png,*.tga,*.bmp,*.gif)", "*.jpeg;*.png;*.tga;*.bmp;*.gif", "All Files", "*"}
+	);
 	const pfd::opt options = pfd::opt::multiselect;
 	_loadFramesList = pfd::open_file(title, "C:/", filters, options).result();
 
@@ -297,35 +357,40 @@ void FrameAnalyzerWindow::ImportFrameSnapshots()
 	_textures.reserve(_textures.size() + _loadFramesList.size());
 
 	// Use taskflow to create a parallel loading stage pipeflow with a serial thread-locked queued one
-	static tf::Pipeline _loadImagePipeline =
-		tf::Pipeline(64,
-					 tf::Pipe{tf::PipeType::SERIAL,
-							  [&](tf::Pipeflow& pf)
-							  {
-								  // Stop emitting tokens if we reached loading queue end
-								  if (pf.token() == _loadFramesList.size())
-								  {
-									  pf.stop();
-									  return;
-								  }
+	static tf::Pipeline _loadImagePipeline = tf::Pipeline(
+		16,
+		tf::Pipe {
+			tf::PipeType::SERIAL,
+			[&](tf::Pipeflow& pf)
+			{
+				// Stop emitting tokens if we reached loading queue end
+				if (pf.token() == _loadFramesList.size())
+				{
+					pf.stop();
+					return;
+				}
 
-								  // Enqueue the image to be loaded from the pipe
-								  _loadImagePipeData[pf.line()] = {_loadFramesList[pf.token()]};
-							  }},
-					 tf::Pipe{tf::PipeType::PARALLEL,
-							  [&](tf::Pipeflow& pf)
-							  {
-								  LoadImageJob& job = _loadImagePipeData[pf.line()];
-								  job.ImageData =
-									  stbi_load(job.ImagePath.c_str(), &job.Width, &job.Height, &job.NumComp, STBI_rgb);
-							  }},
-					 tf::Pipe{tf::PipeType::SERIAL, [&](tf::Pipeflow& pf)
-							  {
-								  LoadImageJob& job = _loadImagePipeData[pf.line()];
-								  _uploadImageLock.lock();
-								  _uploadImageBuff.push_back(std::forward<LoadImageJob>(job));
-								  _uploadImageLock.unlock();
-							  }});
+				// Enqueue the image to be loaded from the pipe
+				_loadImagePipeData[pf.line()] = {_loadFramesList[pf.token()]};
+			}},
+		tf::Pipe {
+			tf::PipeType::PARALLEL,
+			[&](tf::Pipeflow& pf)
+			{
+				LoadImageJob& job = _loadImagePipeData[pf.line()];
+				job.ImageData = stbi_load(job.ImagePath.c_str(), &job.Width, &job.Height, &job.NumComp, STBI_rgb);
+				job.NumComp = STBI_rgb;
+			}},
+		tf::Pipe {
+			tf::PipeType::SERIAL,
+			[&](tf::Pipeflow& pf)
+			{
+				LoadImageJob& job = _loadImagePipeData[pf.line()];
+				_uploadImageLock.lock();
+				_uploadImageBuff.push_back(std::forward<LoadImageJob>(job));
+				_uploadImageLock.unlock();
+			}}
+	);
 	_taskFlow.composed_of(_loadImagePipeline).name("pipeline");
 	_taskExecutor.run(_taskFlow);
 }

@@ -2,6 +2,8 @@
 #define __UTILS__H__
 
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 #include <fstream>
 #include <cstdint>
@@ -168,7 +170,7 @@ namespace rv
 	 * @param fileExt Returning file extension.
 	 * @return std::string Returning folder path (directory).
 	 */
-	inline std::string splitFilename(const std::string& fullPath, std::string& fileName,
+	inline std::string splitFilename(const std::string_view& fullPath, std::string& fileName,
 					   std::string& fileExt)
 	{
 		size_t dirPos, extPos;
@@ -176,7 +178,7 @@ namespace rv
 		extPos = fullPath.find_last_of(".");
 		fileExt = fullPath.substr(extPos);
 		fileName = fullPath.substr(dirPos + 1, extPos - dirPos - 1);
-		return fullPath.substr(0, dirPos + 1);
+		return std::string(fullPath.substr(0, dirPos + 1));
 	}
 
 	/**
@@ -185,7 +187,7 @@ namespace rv
 	 * @param fullPath File's full path.
 	 * @return std::string Returning folder path (directory).
 	 */
-	inline std::string getFileFolderPath(const std::string& fullPath)
+	inline std::string_view getFileFolderPath(const std::string_view& fullPath)
 	{
 		size_t found;
 		found = fullPath.find_last_of("/\\");
