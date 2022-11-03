@@ -1,5 +1,7 @@
 
 // StdLib Includes
+#include "imgui/imgui.h"
+#include <corecrt_math.h>
 #include <vector>
 
 // Third Party Includes
@@ -81,9 +83,9 @@ void UE4NetworkTool::Setup()
 	// _unrealAssetBrowser->LoadAssetInfos("D:\\Aquiris\\wc2\\Content\\");
 }
 
-void UE4NetworkTool::Awake() {}
+void UE4NetworkTool::Awake() { }
 
-void UE4NetworkTool::Sleep() {}
+void UE4NetworkTool::Sleep() { }
 
 void UE4NetworkTool::Shutdown()
 {
@@ -111,6 +113,13 @@ void UE4NetworkTool::Update(double deltaTime)
 {
 	shouldQuit = glfwWindowShouldClose(_window);
 
+	_accDeltaTime += deltaTime;
+	if (_accDeltaTime < 0.033f && _fixedFPS) return;
+	if (_accDeltaTime > 0.033f)
+	{
+		_accDeltaTime = fmod(_accDeltaTime, 0.033f);
+	}
+
 	// Poll first so ImGUI has the events.
 	// This performs some callbacks as well
 	glfwPollEvents();
@@ -120,7 +129,7 @@ void UE4NetworkTool::Update(double deltaTime)
 	ImGui_ImplGlfw_NewFrame();
 	ImGui::NewFrame();
 
-	DrawAppScreen(deltaTime);
+	DrawAppScreen(_fixedFPS ? 0.033f : deltaTime);
 
 	// ImGUI frame baking (finalization)
 	ImGui::Render();
@@ -167,7 +176,9 @@ void UE4NetworkTool::DrawAppScreen(double deltaTime)
 			}
 		}
 
-		ImGui::Text("FPS %d (%.2fms)", static_cast<int>(1.0 / deltaTime), deltaTime * 1000.0);
+		ImGui::Checkbox("Fix FPS", &_fixedFPS);
+
+		ImGui::Text("%d FPS (%.2fms)", static_cast<int>(1.0 / deltaTime), deltaTime * 1000.0);
 		ImGui::EndMainMenuBar();
 	}
 

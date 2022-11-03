@@ -10,8 +10,8 @@ conan_cmake_run(REQUIRES
 				glfw/3.3.8
 				fmt/7.1.3
                 BASIC_SETUP NO_OUTPUT_DIRS
-				IMPORTS "., license* -> ../../licenses @ folder=True, ignore_case=True"
-				IMPORTS "include, * -> ../../include @ ignore_case=True"
+				IMPORTS "., license* -> ../licenses @ folder=True, ignore_case=True"
+				IMPORTS "include, * -> ../include @ ignore_case=True"
 				CMAKE_TARGETS BUILD missing)
 
 # Configure Includes

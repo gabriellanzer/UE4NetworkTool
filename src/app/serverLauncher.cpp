@@ -205,6 +205,8 @@ void ServerLauncherWindow::Draw(ImGuiID dockSpaceId, double deltaTime)
 			_serverLogs.clear();
 		}
 		ImGui::SameLine();
+		ImGui::Checkbox("Force Auto-Scroll", &_forceAutoScroll);
+		ImGui::SameLine();
 		PullServerProcessStatus();
 		PullServerOutputLog();
 #endif
@@ -489,7 +491,7 @@ void ServerLauncherWindow::PullServerOutputLog()
 	{
 		size_t iniEndLine = 0;
 		size_t endEndLine = output.find_first_of('\n', iniEndLine);
-		while (endEndLine != -1)
+		while (endEndLine != string::npos)
 		{
 			// Parse log entry
 			size_t msgSize = endEndLine - iniEndLine;
@@ -504,21 +506,21 @@ void ServerLauncherWindow::PullServerOutputLog()
 			if (msgView[0] == '[')
 			{
 				// Skip time-stamp
-				verbIniP = msg.find_first_of(']', verbIniP + 1);
+				verbIniP = msgView.find_first_of(']', verbIniP + 1);
 				// Skip log counter
-				verbIniP = msg.find_first_of(']', verbIniP + 1);
+				verbIniP = msgView.find_first_of(']', verbIniP + 1);
 			}
 
 			// Skip log category
-			verbIniP = msg.find_first_of(':', verbIniP + 1) + 1;
-			size_t verbEndP = msg.find_first_of(':', verbIniP + 1);
+			verbIniP = msgView.find_first_of(':', verbIniP + 1) + 1;
+			size_t verbEndP = msgView.find_first_of(':', verbIniP + 1);
 			if (verbIniP != -1 && verbEndP != -1)
 			{
 				string_view verbView = msgView.substr(verbIniP, verbEndP - verbIniP);
 				verbosity = ParseLogVerbosity(verbView);
 			}
 
-			// Create log entry
+			// Create log entry 
 			_serverLogs.push_back({std::forward<string>(msg), verbosity});
 
 			// Continue next-line parsing
@@ -539,16 +541,22 @@ void ServerLauncherWindow::PullServerOutputLog()
 	ImGui::BeginChild("Server Output Log", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 1)); // Tighten spacing
 	if (_copyToClipboard) ImGui::LogToClipboard();
-	for (const LogEntry& logEntry : _serverLogs)
+	ImGuiListClipper clipper;
+	clipper.Begin(static_cast<int>(_serverLogs.size()));
+	while (clipper.Step())
 	{
-		ImGui::PushStyleColor(ImGuiCol_Text, LogColors[(int)logEntry.verbosity]);
-		ImGui::TextUnformatted(logEntry.message.c_str());
-		ImGui::PopStyleColor();
-
-		// Auto-scroll
-		if (ImGui::GetScrollY() == ImGui::GetScrollMaxY())
+		for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i)
 		{
-			ImGui::SetScrollHereY();
+			const LogEntry& logEntry = _serverLogs[i];
+			ImGui::PushStyleColor(ImGuiCol_Text, LogColors[(int)logEntry.verbosity]);
+			ImGui::TextUnformatted(logEntry.message.c_str());
+			ImGui::PopStyleColor();
+
+			// Auto-scroll
+			if (ImGui::GetScrollY() == ImGui::GetScrollMaxY() || _forceAutoScroll)
+			{
+				ImGui::SetScrollHereY();
+			}
 		}
 	}
 	if (_copyToClipboard) ImGui::LogFinish();

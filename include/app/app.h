@@ -41,7 +41,9 @@ class UE4NetworkTool : public rv::IApp
 	}
 
 	void DrawAppScreen(double deltaTime);
-	GLFWwindow* _window{nullptr};
+	GLFWwindow* _window = {nullptr};
+	bool _fixedFPS = {true};
+	double _accDeltaTime = 0.033f;
 
 	// Windows
 	class ServerLauncherWindow* _serverLauncherWindow;

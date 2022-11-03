@@ -6,12 +6,12 @@
 
 // Windows Server Deploy Specific Includes
 #if WIN32
-#include <cstdio>
-#include <cstdlib>
-#include <mutex>
-#include <strsafe.h>
-#include <tchar.h>
-#include <windows.h>
+	#include <cstdio>
+	#include <cstdlib>
+	#include <mutex>
+	#include <strsafe.h>
+	#include <tchar.h>
+	#include <windows.h>
 #endif
 
 // Using Directives and TypeDefs
@@ -62,6 +62,9 @@ class ServerLauncherWindow
 	char _additionalParamBuf[512];
 	string _additionalParamLine;
 
+	bool _forceAutoScroll = {false};
+	vector<LogEntry> _serverLogs;
+
 #if WIN32
 	void LaunchServerProcess();
 	DWORD ForceCloseServer();
@@ -76,7 +79,6 @@ class ServerLauncherWindow
 	bool _copyToClipboard = false;
 	string _partialLogLine;
 	vector<char> _asyncReadQueue;
-	vector<LogEntry> _serverLogs;
 
 	// Statics
 	static void CloseServerOnCrashCallback(void* pVoid);
