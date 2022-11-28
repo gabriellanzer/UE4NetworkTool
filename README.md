@@ -1,6 +1,9 @@
 # UE4NetworkTool
 This repository is the **UE4 Network Tool** initiative. A tool that provides support to launch Unreal Dedicated server from the `.uproject` and analyze network related data (aka.: sequence of frame snapshots).
 
+## For usage
+Define an environmental variable pointing to the UE4Editor binary executable called `UE_EDITOR_PATH`. Server launcher only works in Windows.
+
 ## Setting-up for Development
 This project uses CMake as it's buil system generator and Conan as a dependency package manager. Some dependencies are header-only and thus already included in the repo. Both CMake and Conan are required for the code to build:
 - CMake: https://cmake.org/
