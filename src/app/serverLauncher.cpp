@@ -19,6 +19,8 @@ ServerLauncherWindow::ServerLauncherWindow(bool isOpen)
 	: ShouldShow(isOpen), _settingsEntry(Settings::Register("ServerLauncherParams"))
 {
 	_paramBuf[0] = '\0';
+	memcpy(_uprojectBuf, _uprojectFileName.c_str(), _uprojectFileName.size());
+	_uprojectBuf[_uprojectFileName.size()] = '\0';
 	_additionalParamBuf[0] = '\0';
 }
 
@@ -122,7 +124,7 @@ void ServerLauncherWindow::Draw(ImGuiID dockSpaceId, double deltaTime)
 					{
 						ImGui::SetNextItemWidth(inputTextWidth);
 						if (ImGui::InputText("##paramInput", paramEntry.data(), paramEntry.size() + 1,
-											 ImGuiInputTextFlags_ReadOnly))
+								ImGuiInputTextFlags_ReadOnly))
 						{
 							paramEntry = _paramBuf;
 						}
@@ -178,6 +180,11 @@ void ServerLauncherWindow::Draw(ImGuiID dockSpaceId, double deltaTime)
 		if (ImGui::InputText("Additional Parameter Line", _additionalParamBuf, 512))
 		{
 			_additionalParamLine = _additionalParamBuf;
+		}
+
+		if (ImGui::InputText("UProject Filename", _uprojectBuf, 512, ImGuiInputTextFlags_AutoSelectAll))
+		{
+			_uprojectFileName = _uprojectBuf;
 		}
 
 #if WIN32
@@ -264,9 +271,14 @@ void ServerLauncherWindow::LoadSettings()
 	size_t itStart = itPos + 1;
 	itPos = entryView.find_first_of('|', itStart);
 	if (itPos == size_t(-1)) return;
-
 	_additionalParamLine = std::forward<string>(entryView.substr(itStart, itPos - itStart));
 	memcpy(_additionalParamBuf, _additionalParamLine.c_str(), _additionalParamLine.size() + 1);
+
+	itStart = itPos + 1;
+	itPos = entryView.find_first_of('|', itStart);
+	if (itPos == size_t(-1)) return;
+	_uprojectFileName = std::forward<string>(entryView.substr(itStart, itPos - itStart));
+	memcpy(_uprojectBuf, _uprojectFileName.c_str(), _uprojectFileName.size() + 1);
 }
 
 void ServerLauncherWindow::StoreSettings()
@@ -277,6 +289,7 @@ void ServerLauncherWindow::StoreSettings()
 		saveStr += fmt::format("Param={0}|", param);
 	}
 	saveStr += fmt::format("{0}|", _additionalParamLine);
+	saveStr += fmt::format("{0}|", _uprojectFileName);
 	if (_settingsEntry != nullptr)
 	{
 		_settingsEntry->assign(saveStr);
@@ -328,7 +341,8 @@ void ServerLauncherWindow::LaunchServerProcess()
 	cmdLine += " " + directory; // " D:\\Aquiris\\wc2\\";
 
 	// Append UPROJECT
-	cmdLine += "HorizonChase2.uproject";
+	cmdLine += _uprojectFileName;
+	const string launchPath = cmdLine;
 
 	// Append custom parameters
 	cmdLine += " ";
@@ -388,7 +402,8 @@ void ServerLauncherWindow::LaunchServerProcess()
 	// If an error occurs, exit the application.
 	if (!bSuccess)
 	{
-		pfd::message launchErrorDialog("Server Launch Failed", "Couldn't launch server executable!", pfd::choice::ok,
+		string errorMsg = fmt::format("Couldn't launch server executable! Path:{0}", launchPath);
+		pfd::message launchErrorDialog("Server Launch Failed", errorMsg, pfd::choice::ok,
 									   pfd::icon::error);
 		delete _serverProcInfo;
 		_serverProcInfo = nullptr;

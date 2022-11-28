@@ -109,15 +109,17 @@ void UE4NetworkTool::Shutdown()
 	glfwTerminate();
 }
 
+constexpr float fixedFPSDeltaTime = 1.0f/60.0f;
+
 void UE4NetworkTool::Update(double deltaTime)
 {
 	shouldQuit = glfwWindowShouldClose(_window);
 
 	_accDeltaTime += deltaTime;
-	if (_accDeltaTime < 0.033f && _fixedFPS) return;
-	if (_accDeltaTime > 0.033f)
+	if (_accDeltaTime < fixedFPSDeltaTime && _fixedFPS) return;
+	if (_accDeltaTime > fixedFPSDeltaTime)
 	{
-		_accDeltaTime = fmod(_accDeltaTime, 0.033f);
+		_accDeltaTime = fmod(_accDeltaTime, fixedFPSDeltaTime);
 	}
 
 	// Poll first so ImGUI has the events.
@@ -129,7 +131,7 @@ void UE4NetworkTool::Update(double deltaTime)
 	ImGui_ImplGlfw_NewFrame();
 	ImGui::NewFrame();
 
-	DrawAppScreen(_fixedFPS ? 0.033f : deltaTime);
+	DrawAppScreen(_fixedFPS ? fixedFPSDeltaTime : deltaTime);
 
 	// ImGUI frame baking (finalization)
 	ImGui::Render();

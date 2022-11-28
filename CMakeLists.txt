@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.1.0)
 
 # Project Setup
-project(UE4NetworkTool VERSION 0.0.3)
+project(UE4NetworkTool VERSION 0.0.4)
 
 # Configure Conan
 include(${CMAKE_SOURCE_DIR}/conan.cmake)

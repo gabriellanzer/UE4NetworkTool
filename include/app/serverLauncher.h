@@ -57,6 +57,8 @@ class ServerLauncherWindow
 	string* _settingsEntry = nullptr;
 	int _scrollTargetParamId = 0;
 	int _selectedParamId = 0;
+	char _uprojectBuf[512];
+	string _uprojectFileName;
 	char _paramBuf[512];
 	vector<string> _launchParams;
 	char _additionalParamBuf[512];
