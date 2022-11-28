@@ -19,4 +19,5 @@ The project depends on the following libraries so far:
 - [Portable File Dialogs - PFD](https://github.com/samhocevar/portable-file-dialogs) - for file picking and errors
 - [UEViewer](https://github.com/gildor2/UEViewer) - to query for existing assets of an specific type
 - [FMT](https://github.com/fmtlib/fmt) - to have nicely formatted strings (really fast)
+- [Taskflow](https://github.com/taskflow/taskflow) - used for easy multithreading and loading frames through parallel pipes
 - [CppDelegate](https://www.codeproject.com/Articles/11015/The-Impossibly-Fast-C-Delegates) - to have fast callbacks (not in use ATM)
